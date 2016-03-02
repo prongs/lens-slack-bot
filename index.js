@@ -22,7 +22,7 @@ function LensSlackBot() {
 
     this.start = function () {
         console.log("starting lens bot");
-        var controller = Botkit.slackbot({});
+        var controller = Botkit.slackbot({debug:true});
         controller.spawn({token: slackToken}).startRTM();
         controller.hears(["details", "query details"], ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
