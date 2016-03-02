@@ -6,7 +6,7 @@ var YAML = require("yamljs");
 function LensSlackBot() {
     nconf.argv()
         .env()
-        .file({file: 'lens_config.json'});
+        .file({file: nconf.get("HOME") + '/lens_config.json'});
 
     var slackToken = nconf.get("slackToken");
     var client = new LensClient({
