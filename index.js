@@ -57,7 +57,7 @@ function LensSlackBot() {
                 if(!('state' in qs)) {
                     var split = message.text.split("queries");
                     if(split.length > 1) {
-                        qs['state'] = split[0];
+                        qs['state'] = split[0].replace(/all/g, '');
                     }
                 }
                 if('state' in qs) {
