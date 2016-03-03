@@ -66,7 +66,7 @@ function LensSlackBot() {
                 client.listQueries(qs, function(queries){
                     var reply = "`" + JSON.stringify(qs) + "`(" + queries.length +" )";
                     if(queries.length > 0) {
-                        reply = reply + "\n```" + queries.join("\n") + "```";
+                        reply = reply + "\n```" + YAML.stringify(queries) + "```";
                     }
                     bot.reply(message, reply);
                 });
