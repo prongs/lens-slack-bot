@@ -22,7 +22,7 @@ function LensSlackBot() {
 
     this.start = function () {
         console.log("starting lens bot");
-        var controller = Botkit.slackbot({debug:true});
+        var controller = Botkit.slackbot({debug: true});
         controller.spawn({token: slackToken}).startRTM();
         controller.hears(["details", "query details"], ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
@@ -44,6 +44,38 @@ function LensSlackBot() {
                 });
             }
         );
+        controller.hears([".*?queries.*"],
+            ['direct_message', 'direct_mention', 'mention', 'ambient'],
+            function (bot, message) {
+                var matches = message.text.match(/(\w+)=`(.*?)`/g);
+                var qs = {};
+                var queryParams = [];
+                for(var i in matches) {
+                    var kv = matches[i].split("=");
+                    qs[kv[0]] = kv[1].replace(/`/g,"");
+                }
+                if(!('state' in qs)) {
+                    var split = message.text.split("queries");
+                    if(split.length > 1) {
+                        qs['state'] = split[0];
+                    }
+                }
+                if('state' in qs) {
+                    qs['state'] = qs['state'].toUpperCase().trim();
+                }
+                client.listQueries(qs, function(queries){
+                    var reply = "`" + JSON.stringify(qs) + "`(" + queries.length +" )";
+                    if(queries.length > 0) {
+                        reply = reply + "\n```" + queries.join("\n") + "```";
+                    }
+                    bot.reply(message, reply);
+                });
+            }
+        );
     }
 }
 module.exports = LensSlackBot;
+if (require.main == module) {
+    var bot = new LensSlackBot();
+    bot.start();
+}
