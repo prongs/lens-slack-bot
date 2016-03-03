@@ -132,6 +132,9 @@ function LensSlackBot() {
                 }
                 function reply(queries) {
                     var reply = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
+                    for (var i = 0; i < queries.length; i++) {
+                        queries[i] = queries[i].handleId;
+                    }
                     if (queries.length > 0) {
                         reply = reply + "\n```" + YAML.stringify(queries) + "```";
                     }
