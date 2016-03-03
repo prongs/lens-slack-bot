@@ -31,7 +31,7 @@ function LensSlackBot() {
     this.start = function () {
         console.log("starting lens bot");
         var controller = Botkit.slackbot({debug: true});
-        var bot = controller.spawn({token: slackToken})
+        var bot = controller.spawn({token: slackToken});
         bot.startRTM();
         var lastActiveTime = new Date();
 
@@ -143,7 +143,7 @@ function LensSlackBot() {
                     if (queries.length > 0) {
                         reply = reply + "\n```" + YAML.stringify(queries) + "```";
                     }
-                    bot.reply(message, reply, lastActiveTime);
+                    bot.reply(message, reply, updateLastActiveTime);
                 }
 
                 if (!('user' in qs)) {
