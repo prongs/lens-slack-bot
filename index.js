@@ -47,7 +47,7 @@ function LensSlackBot() {
         controller.hears([".*?queries.*"],
             ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
-                var matches = message.text.match(/(\w+)=(.*?)/g);
+                var matches = message.text.match(/(\w+)=`(.*?)`/g);
                 var qs = {};
                 var queryParams = [];
                 for(var i in matches) {
@@ -62,6 +62,11 @@ function LensSlackBot() {
                 }
                 if('state' in qs) {
                     qs['state'] = qs['state'].toUpperCase().trim();
+                }
+                if(!('user' in qs)) {
+                    if(message.text.indexOf("all") > -1) {
+                        qs['user'] = 'all';
+                    }
                 }
                 client.listQueries(qs, function(queries){
                     var reply = "`" + JSON.stringify(qs) + "`(" + queries.length +" )";
