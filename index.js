@@ -17,7 +17,10 @@ function LensSlackBot() {
     var handleRegexString = "\\w{8}-(\\w{4}-){3}\\w{12}";
 
     function forEachHandle(text, callback) {
-        text.match(/\w{8}-(\w{4}-){3}\w{12}/g).forEach(callback);
+        var match = text.match(/\w{8}-(\w{4}-){3}\w{12}/g);
+        if (match) {
+            match.forEach(callback);
+        }
     }
 
     this.start = function () {
