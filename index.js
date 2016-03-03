@@ -18,13 +18,6 @@ function LensSlackBot() {
     });
     var handleRegexString = "\\w{8}-(\\w{4}-){3}\\w{12}";
 
-    function forEachHandle(text, callback) {
-        var match = text.match(/\w{8}-(\w{4}-){3}\w{12}/g);
-        if (match) {
-            match.forEach(callback);
-        }
-    }
-
     function getMessage(heading, details) {
         if (!details) {
             return heading;
@@ -38,8 +31,20 @@ function LensSlackBot() {
     this.start = function () {
         console.log("starting lens bot");
         var controller = Botkit.slackbot({debug: true});
-        controller.spawn({token: slackToken}).startRTM();
+        var bot = controller.spawn({token: slackToken})
+        bot.startRTM();
+        var lastActiveTime = new Date();
 
+        function updateLastActiveTime() {
+            lastActiveTime = new Date();
+        }
+
+        controller.on('tick', function () {
+            var now = new Date();
+            if (now.getTime() - lastActiveTime.getTime() > 1000 * 60 * 10) { // 10 minute idle timeout
+                bot.say({type: "ping", id: now.getTime()}, updateLastActiveTime);
+            }
+        });
         controller.hears(["^\\s*(\\w{8}-\\w{4}-\\w{4}-\\w{4}-\\w{12})\\s*:\\s*(.*?)\\s*$"],
             ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
@@ -55,7 +60,7 @@ function LensSlackBot() {
                 function reply(heading, details) {
                     var reply = getMessage(heading, details);
                     if (reply.length < 4000) {
-                        bot.reply(message, reply);
+                        bot.reply(message, reply, updateLastActiveTime);
                     } else {
                         bot.api.files.upload({
                             content: details,
@@ -138,7 +143,7 @@ function LensSlackBot() {
                     if (queries.length > 0) {
                         reply = reply + "\n```" + YAML.stringify(queries) + "```";
                     }
-                    bot.reply(message, reply);
+                    bot.reply(message, reply, lastActiveTime);
                 }
 
                 if (!('user' in qs)) {
