@@ -25,6 +25,7 @@
   "dependencies": {
     "botkit": "0.0.7",
     "nconf": "^0.8.4",
+    "node-cache": "^3.2.0",
     "yamljs": "^0.2.6"
   }
 }
