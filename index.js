@@ -47,7 +47,7 @@ function LensSlackBot() {
         controller.hears([".*?queries.*"],
             ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
-                var matches = message.text.match(/(\w+)=`(.*?)`/g);
+                var matches = message.text.match(/(\w+)=(.*?)/g);
                 var qs = {};
                 var queryParams = [];
                 for(var i in matches) {
