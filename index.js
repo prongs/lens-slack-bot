@@ -35,7 +35,7 @@ function LensSlackBot() {
         var bot = controller.spawn({token: slackToken});
         bot.startRTM(function (error, bot, response) {
             if (error) {
-                console.log("Encountered error while starting RTM")
+                console.log("Encountered the following error while starting RTM");
                 console.error(error);
                 process.exit(1);
             }
