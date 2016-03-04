@@ -46,6 +46,9 @@ function LensSlackBot() {
                 bot.say({type: "ping", id: now.getTime()}, updateLastActiveTime);
             }
         });
+        controller.on('error', function (error) {
+            console.error("error: " + error);
+        });
         function parseFields(str) {
             if (!str) {
                 return null;
