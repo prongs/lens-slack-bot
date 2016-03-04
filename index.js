@@ -35,9 +35,8 @@ function LensSlackBot() {
         var bot = controller.spawn({token: slackToken});
         bot.startRTM(function (error, bot, response) {
             if (error) {
-                console.log("Encountered the following error while starting RTM");
                 console.error(error);
-                process.exit(1);
+                throw new Error("Couldn't connect to slack", error);
             }
         });
         var lastActiveTime = new Date();
@@ -51,10 +50,6 @@ function LensSlackBot() {
             if (now.getTime() - lastActiveTime.getTime() > 1000 * 60 * 1) { // 1 minute idle timeout
                 bot.say({type: "ping", id: now.getTime()}, updateLastActiveTime);
             }
-        });
-        controller.on('error', function (error) {
-            console.error("error: " + error);
-            console.error(error);
         });
         function parseFields(str) {
             if (!str) {
