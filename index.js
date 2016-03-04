@@ -41,7 +41,7 @@ function LensSlackBot() {
 
         controller.on('tick', function () {
             var now = new Date();
-            if (now.getTime() - lastActiveTime.getTime() > 1000 * 60 * 10) { // 10 minute idle timeout
+            if (now.getTime() - lastActiveTime.getTime() > 1000 * 60 * 1) { // 1 minute idle timeout
                 bot.say({type: "ping", id: now.getTime()}, updateLastActiveTime);
             }
         });
