@@ -48,6 +48,8 @@ function LensSlackBot() {
         });
         controller.on('error', function (error) {
             console.error("error: " + error);
+            console.error(error);
+            console.log(JSON.stringify(error));
         });
         function parseFields(str) {
             if (!str) {
