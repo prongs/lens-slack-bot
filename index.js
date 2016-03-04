@@ -33,7 +33,11 @@ function LensSlackBot() {
         console.log("starting lens bot");
         var controller = Botkit.slackbot({debug: true});
         var bot = controller.spawn({token: slackToken});
-        bot.startRTM();
+        bot.startRTM(function(error) {
+            console.log("Encountered error while starting RTM")
+            console.error(error);
+            process.exit(1);
+        });
         var lastActiveTime = new Date();
 
         function updateLastActiveTime() {
@@ -49,7 +53,6 @@ function LensSlackBot() {
         controller.on('error', function (error) {
             console.error("error: " + error);
             console.error(error);
-            console.log(JSON.stringify(error));
         });
         function parseFields(str) {
             if (!str) {
