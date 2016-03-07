@@ -123,10 +123,10 @@ function LensSlackBot() {
                         if (!value) {
                             client.getQuery(handle, function (query) {
                                 queryCache.set(handle, query);
-                                sendQueryDetails(query);
+                                sendQueryDetails(query.lensQuery);
                             })
                         } else {
-                            sendQueryDetails(value);
+                            sendQueryDetails(value.lensQuery);
                         }
                     }
                 });
@@ -175,7 +175,7 @@ function LensSlackBot() {
                 function reply(queries) {
                     var reply = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
                     for (var i = 0; i < queries.length; i++) {
-                        queries[i] = queries[i].handleId;
+                        queries[i] = queries[i].queryHandle.handleId;
                     }
                     if (queries.length > 0) {
                         reply = reply + "\n```" + YAML.stringify(queries) + "```";
