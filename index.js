@@ -39,7 +39,13 @@ function LensSlackBot() {
                 throw new Error("Couldn't connect to slack", error);
             }
         });
-        controller.on('rtm_close', function(){
+        controller.on('rtm_close', function () {
+            client.invalidateSession(function () {
+                process.exit(1);
+            }, function () {
+                console.error("Error closing session");
+                process.exit(2);
+            });
             process.exit(1);
         });
         var lastActiveTime = new Date();
