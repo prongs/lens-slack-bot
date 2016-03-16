@@ -56,7 +56,7 @@ function LensSlackBot() {
 
         controller.on('tick', function () {
             var now = new Date();
-            if (now.getTime() - lastActiveTime.getTime() > 1000 * 60 * 1) { // 1 minute idle timeout
+            if (now.getTime() - lastActiveTime.getTime() > 1000 * 60) { // 1 minute idle timeout
                 bot.say({type: "ping", id: now.getTime()}, updateLastActiveTime);
             }
         });
@@ -147,12 +147,12 @@ function LensSlackBot() {
                 respondWithDetails(message, handles, fields);
             }
         );
-        controller.hears(["(all\\s*)?(\\w+)\\squeries(.*?)(:\\s*(.*?))?$"],
+        controller.hears(["^(all\\s*)?(\\w+)\\squeries(.*?)(:\\s*(.*?))?$"],
             ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
                 var qs = {};
                 if (message.match[3]) {
-                    var params = message.match[3].trim().split(/[^a-zA-Z.]+/);
+                    var params = message.match[3].trim().split(/[^a-zA-Z_.]+/);
                     if (params.length % 2 != 0) {
                         bot.reply("Sorry couldn't parse your arguments: " + message.match[3], updateLastActiveTime);
                         return;
