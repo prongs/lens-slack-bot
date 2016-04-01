@@ -20,7 +20,7 @@ function LensSlackBot() {
     var handleRegex = new RegExp(handleRegexString, "g");
 
     function getMessage(heading, details) {
-        if (!details) {
+        if (!details || details == "") {
             return heading;
         }
         if (typeof details == "object") {
@@ -76,10 +76,15 @@ function LensSlackBot() {
         }
 
         function respondWithDetails(message, handles, fields) {
-            function reply(heading, details) {
+            function reply(heading, details, convo) {
                 var reply = getMessage(heading, details);
                 if (reply.length < 4000) {
-                    bot.reply(message, reply, updateLastActiveTime);
+                    if (convo) {
+                        convo.say(reply);
+                        updateLastActiveTime();
+                    } else {
+                        bot.reply(message, reply, updateLastActiveTime);
+                    }
                 } else {
                     if (typeof(details) == "object") {
                         details = YAML.stringify(details);
@@ -97,12 +102,12 @@ function LensSlackBot() {
                 }
             }
 
-            function sendQueryDetails(query) {
+            function sendQueryDetails(query, convo) {
                 if (fields && fields.length == 1) {
                     if (fields[0] in query) {
-                        reply(fields[0] + " for " + query.queryHandle.handleId, query[fields[0]]);
+                        reply(fields[0] + " for " + query.queryHandle.handleId, query[fields[0]], convo);
                     } else {
-                        reply("No field named " + fields[0] + " in query " + query.queryHandle.handleId);
+                        reply("No field named " + fields[0] + " in query " + query.queryHandle.handleId, "", convo);
                     }
                 } else {
                     var data = {};
@@ -123,20 +128,22 @@ function LensSlackBot() {
                 }
             }
 
-            handles.forEach(function (handle) {
-                queryCache.get(handle, function (error, value) {
-                    if (!error) {
-                        if (!value) {
-                            client.getQuery(handle, function (query) {
-                                queryCache.set(handle, query);
-                                sendQueryDetails(query.lensQuery);
-                            })
-                        } else {
-                            sendQueryDetails(value.lensQuery);
+            bot.startConversation(message, function (error, convo) {
+                handles.forEach(function (handle) {
+                    queryCache.get(handle, function (error, value) {
+                        if (!error) {
+                            if (!value) {
+                                client.getQuery(handle, function (query) {
+                                    queryCache.set(handle, query);
+                                    sendQueryDetails(query.lensQuery, convo);
+                                })
+                            } else {
+                                sendQueryDetails(value.lensQuery, convo);
+                            }
                         }
-                    }
+                    });
                 });
-            });
+            })
         }
 
         controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
