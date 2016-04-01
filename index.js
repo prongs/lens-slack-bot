@@ -139,6 +139,9 @@ function LensSlackBot() {
             });
         }
 
+        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
+            bot.reply(message, "You're welcome :simple_smile:")
+        });
         controller.hears(["^(((" + handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],
             ['direct_message', 'direct_mention', 'mention', 'ambient'],
             function (bot, message) {
@@ -152,9 +155,10 @@ function LensSlackBot() {
             function (bot, message) {
                 var qs = {};
                 if (message.match[3]) {
-                    var params = message.match[3].trim().split(/[^a-zA-Z_.]+/);
+                    var params = message.match[3].trim().split(/[^a-zA-Z_/.]+/);
                     if (params.length % 2 != 0) {
-                        bot.reply("Sorry couldn't parse your arguments: " + message.match[3], updateLastActiveTime);
+                        bot.reply(message,
+                            "Sorry couldn't parse your arguments: " + message.match[3], updateLastActiveTime);
                         return;
                     } else {
                         for (var i = 0; i < params.length; i += 2) {
@@ -209,6 +213,61 @@ function LensSlackBot() {
                 }
             }
         );
+        var wrap = nconf.get("wrap");
+        if (wrap) {
+            for (var key in wrap) {
+                if (wrap.hasOwnProperty(key)) {
+                    var value = wrap[key];
+                    var command = value.command;
+                    if (command) {
+                        var args = [];
+                        for (var arg in args) {
+                            if (value.arguments.hasOwnProperty(key)) {
+                                args.add(arg);
+                            }
+                        }
+                        function final_callback(response, convo) {
+                            console.log(convo);
+                        }
+
+                        function get_callback(value, args, i) {
+                            if (i == args.length - 1) {
+                                return final_callback;
+                            }
+                            return function (response, convo) {
+                                convo.say("Okay");
+                                convo.ask(value.arguments[arg], get_callback(value, args, i + 1));
+                            }
+                        }
+
+                        // under work. Adding the command wrap functionality.
+                        (function (value) {
+                            controller.hears([value], ['direct_message', 'direct_mention', 'mention', 'ambient'],
+                                function (bot, message) {
+                                    if (value.arguments) {
+                                        bot.startConversation(message, function (err, convo) {
+                                            var questions = [];
+                                            for (var arg in value.arguments) {
+                                                if (value.arguments.hasOwnProperty(arg)) {
+                                                    var question = value.arguments[arg];
+                                                    questions.add((function (key, question) {
+                                                        return function (response, convo) {
+                                                            convo.ask(question, function (response, convo) {
+                                                                convo.say("Okay")
+                                                            }, {key: key})
+                                                        }
+                                                    })(arg, question));
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            );
+                        })(value);
+                    }
+                }
+            }
+        }
     }
 }
 module.exports = LensSlackBot;
