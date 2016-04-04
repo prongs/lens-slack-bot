@@ -246,8 +246,8 @@ function LensSlackBot() {
                                 convo.ask(value.arguments[arg], get_callback(value, args, i + 1));
                             }
                         }
+                        /*
 
-                        // under work. Adding the command wrap functionality.
                         (function (value) {
                             controller.hears([value], ['direct_message', 'direct_mention', 'mention', 'ambient'],
                                 function (bot, message) {
@@ -271,6 +271,7 @@ function LensSlackBot() {
                                 }
                             );
                         })(value);
+                        */
                     }
                 }
             }
