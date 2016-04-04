@@ -162,7 +162,7 @@ function LensSlackBot() {
             function (bot, message) {
                 var qs = {};
                 if (message.match[3]) {
-                    var params = message.match[3].trim().split(/[^a-zA-Z_/.]+/);
+                    var params = message.match[3].trim().split(/[^a-zA-Z0-9_/.]+/);
                     if (params.length % 2 != 0) {
                         bot.reply(message,
                             "Sorry couldn't parse your arguments: " + message.match[3], updateLastActiveTime);
