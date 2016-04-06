@@ -181,12 +181,14 @@ function LensSlackBot() {
                 markDetailsSent(convo);
             }
 
-            bot.startConversation(message, function (error, convo) {
-                sendAllQueryDetails(convo);
-                convo.on('end', function (convo) {
-                    console.log(convo);
+            if (handles && handles.length) {
+                bot.startConversation(message, function (error, convo) {
+                    sendAllQueryDetails(convo);
+                    convo.on('end', function (convo) {
+                        console.log(convo);
+                    })
                 })
-            })
+            }
         }
 
         controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
