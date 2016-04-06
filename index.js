@@ -76,6 +76,41 @@ function LensSlackBot() {
         }
 
         function respondWithDetails(message, handles, fields) {
+            var detailsSent = 0;
+
+            function parseFieldsAndSend(response, convo) {
+                fields = parseFields(response.text);
+                detailsSent = 0;
+                sendAllQueryDetails(convo);
+                convo.next();
+            }
+
+            function markDetailsSent(convo) {
+                detailsSent++;
+                if (detailsSent == handles.length) {
+                    convo.ask("Do you want More fields?", [
+                        {
+                            pattern: bot.utterances.no,
+                            callback: function (response, convo) {
+                                convo.say("Nice talking to you :simple_smile:");
+                                convo.next();
+                            }
+                        },
+                        {
+                            pattern: bot.utterances.yes,
+                            callback: function (response, convo) {
+                                convo.ask("Tell me.", parseFieldsAndSend);
+                                convo.next();
+                            }
+                        },
+                        {
+                            default: true,
+                            callback: parseFieldsAndSend
+                        }
+                    ]);
+                }
+            }
+
             function reply(heading, details, convo) {
                 var reply = getMessage(heading, details);
                 if (reply.length < 4000) {
@@ -102,6 +137,23 @@ function LensSlackBot() {
                 }
             }
 
+            function sendAllQueryDetails(convo) {
+                handles.forEach(function (handle) {
+                    queryCache.get(handle, function (error, value) {
+                        if (!error) {
+                            if (!value) {
+                                client.getQuery(handle, function (query) {
+                                    queryCache.set(handle, query);
+                                    sendQueryDetails(query.lensQuery, convo);
+                                })
+                            } else {
+                                sendQueryDetails(value.lensQuery, convo);
+                            }
+                        }
+                    });
+                });
+            }
+
             function sendQueryDetails(query, convo) {
                 if (fields && fields.length == 1) {
                     if (fields[0] in query) {
@@ -121,28 +173,19 @@ function LensSlackBot() {
                         data = query;
                     }
                     if (data) {
-                        reply(query.queryHandle.handleId, data);
+                        reply(query.queryHandle.handleId, data, convo);
                     } else {
-                        reply("No data found for " + query.queryHandle.handleId);
+                        reply("No data found for " + query.queryHandle.handleId, "", convo);
                     }
                 }
+                markDetailsSent(convo);
             }
 
             bot.startConversation(message, function (error, convo) {
-                handles.forEach(function (handle) {
-                    queryCache.get(handle, function (error, value) {
-                        if (!error) {
-                            if (!value) {
-                                client.getQuery(handle, function (query) {
-                                    queryCache.set(handle, query);
-                                    sendQueryDetails(query.lensQuery, convo);
-                                })
-                            } else {
-                                sendQueryDetails(value.lensQuery, convo);
-                            }
-                        }
-                    });
-                });
+                sendAllQueryDetails(convo);
+                convo.on('end', function (convo) {
+                    console.log(convo);
+                })
             })
         }
 
@@ -246,32 +289,33 @@ function LensSlackBot() {
                                 convo.ask(value.arguments[arg], get_callback(value, args, i + 1));
                             }
                         }
+
                         /*
 
-                        (function (value) {
-                            controller.hears([value], ['direct_message', 'direct_mention', 'mention', 'ambient'],
-                                function (bot, message) {
-                                    if (value.arguments) {
-                                        bot.startConversation(message, function (err, convo) {
-                                            var questions = [];
-                                            for (var arg in value.arguments) {
-                                                if (value.arguments.hasOwnProperty(arg)) {
-                                                    var question = value.arguments[arg];
-                                                    questions.add((function (key, question) {
-                                                        return function (response, convo) {
-                                                            convo.ask(question, function (response, convo) {
-                                                                convo.say("Okay")
-                                                            }, {key: key})
-                                                        }
-                                                    })(arg, question));
-                                                }
-                                            }
-                                        });
-                                    }
-                                }
-                            );
-                        })(value);
-                        */
+                         (function (value) {
+                         controller.hears([value], ['direct_message', 'direct_mention', 'mention', 'ambient'],
+                         function (bot, message) {
+                         if (value.arguments) {
+                         bot.startConversation(message, function (err, convo) {
+                         var questions = [];
+                         for (var arg in value.arguments) {
+                         if (value.arguments.hasOwnProperty(arg)) {
+                         var question = value.arguments[arg];
+                         questions.add((function (key, question) {
+                         return function (response, convo) {
+                         convo.ask(question, function (response, convo) {
+                         convo.say("Okay")
+                         }, {key: key})
+                         }
+                         })(arg, question));
+                         }
+                         }
+                         });
+                         }
+                         }
+                         );
+                         })(value);
+                         */
                     }
                 }
             }
