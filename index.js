@@ -82,7 +82,6 @@ function LensSlackBot() {
                 fields = parseFields(response.text);
                 detailsSent = 0;
                 sendAllQueryDetails(convo);
-                convo.next();
             }
 
             function markDetailsSent(convo) {
@@ -145,6 +144,9 @@ function LensSlackBot() {
                                 client.getQuery(handle, function (query) {
                                     queryCache.set(handle, query);
                                     sendQueryDetails(query.lensQuery, convo);
+                                }, function (error) {
+                                    convo.say("Got error finding query " + handle + ": " + error);
+                                    markDetailsSent(convo);
                                 })
                             } else {
                                 sendQueryDetails(value.lensQuery, convo);
@@ -207,7 +209,7 @@ function LensSlackBot() {
             function (bot, message) {
                 var qs = {};
                 if (message.match[3]) {
-                    var params = message.match[3].trim().split(/[^a-zA-Z0-9_/.]+/);
+                    var params = message.match[3].trim().split(/[^a-zA-Z0-9_/.-]+/);
                     if (params.length % 2 != 0) {
                         bot.reply(message,
                             "Sorry couldn't parse your arguments: " + message.match[3], updateLastActiveTime);
