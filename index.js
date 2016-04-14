@@ -3,6 +3,7 @@ var Botkit = require('botkit');
 var LensClient = require("lens-node-client");
 var YAML = require("yamljs");
 var NodeCache = require("node-cache");
+var cleverbot = require("cleverbot.io");
 var queryCache = new NodeCache({stdTTL: 200, checkperiod: 240});
 
 function LensSlackBot() {
@@ -82,6 +83,7 @@ function LensSlackBot() {
                 fields = parseFields(response.text);
                 detailsSent = 0;
                 sendAllQueryDetails(convo);
+                convo.next();
             }
 
             function markDetailsSent(convo) {
@@ -193,7 +195,7 @@ function LensSlackBot() {
             }
         }
 
-        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
+        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
             bot.reply(message, "You're welcome :simple_smile:")
         });
         controller.hears(["^(((" + handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],

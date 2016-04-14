@@ -24,6 +24,7 @@
   "homepage": "https://github.com/prongs/lens-slack-bot#readme",
   "dependencies": {
     "botkit": "0.0.7",
+    "cleverbot.io": "^1.0.4",
     "nconf": "^0.8.4",
     "node-cache": "^3.2.0",
     "yamljs": "^0.2.6"
