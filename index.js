@@ -195,7 +195,7 @@ function LensSlackBot() {
             }
         }
 
-        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
+        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
             bot.reply(message, "You're welcome :simple_smile:")
         });
         controller.hears(["^(((" + handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],
