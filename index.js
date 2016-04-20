@@ -5,7 +5,23 @@ var YAML = require("yamljs");
 var NodeCache = require("node-cache");
 var cleverbot = require("cleverbot.io");
 var queryCache = new NodeCache({stdTTL: 200, checkperiod: 240});
+var replies = {
+    thank: ["You're welcome.", "No problem.", "No trouble at all.", "My pleasure.", "Glad to help.", "Anytime.",
+        "I serve at your pleasure."],
+    exit: ['Nice talking to you.', "Maybe later.", "As you wish."],
+    default: ["I don\'t know what to say."]
+};
+var smileys = {
+    'default': ["simple_smile", "beers", "sunglasses", "robot_face", "v", "muscle", "computer"]
+};
 
+Array.prototype.randomElement = function () {
+    return this[Math.floor(Math.random() * this.length)]
+};
+
+function get_reply_to(str) {
+    return (replies[str] || replies.default).randomElement() + " :" + (smileys[str] || smileys.default).randomElement() + ":";
+}
 function LensSlackBot() {
     nconf.argv()
         .env()
@@ -93,7 +109,7 @@ function LensSlackBot() {
                         {
                             pattern: bot.utterances.no,
                             callback: function (response, convo) {
-                                convo.say("Nice talking to you :simple_smile:");
+                                convo.say(get_reply_to('exit'));
                                 convo.next();
                             }
                         },
@@ -196,7 +212,7 @@ function LensSlackBot() {
         }
 
         controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
-            bot.reply(message, "You're welcome :simple_smile:")
+            bot.reply(message, get_reply_to('thank'));
         });
         controller.hears(["^(((" + handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],
             ['direct_message', 'direct_mention', 'mention', 'ambient'],
