@@ -6,6 +6,7 @@ var YAML = require("yamljs");
 var NodeCache = require("node-cache");
 var cleverbot = require("cleverbot.io");
 var mapreduce = require('mapred')(); // multi-core execution (fastest)
+var alasql = require('alasql'); // alasql
 var Request = require("request");
 const replies = {
   thank: ["You're welcome.", "No problem.", "No trouble at all.", "My pleasure.", "Glad to help.", "Anytime.",
@@ -32,6 +33,27 @@ const getMessage = (heading, details) => {
   return "`" + heading + "`:\n```" + details + "```";
 };
 
+class QueryCache {
+  constructor(extracter) {
+    this.queryCache = new NodeCache({stdTTL: 200, checkperiod: 240});
+    this.extracter = extracter;
+  }
+  get(handle, callback, error_callback) {
+    this.queryCache.get(handle, (error, value)=>{
+      if (value) {
+        callback(value);
+      } else {
+        this.extracter(handle, (query) => {
+          this.queryCache.set(handle, query);
+          callback(query);
+        }, (error) => {
+          console.error("Value doesn't exist in system for " + handle + " error: " + error);
+          error_callback(error);
+        });
+      }
+    });
+  }
+}
 
 class LensSlackBot {
   constructor() {
@@ -51,7 +73,7 @@ class LensSlackBot {
     this.updateLastActiveTime = () => {
       this.lastActiveTime = new Date();
     };
-    this.queryCache = new NodeCache({stdTTL: 200, checkperiod: 240});
+    this.queryCache = new QueryCache(this.client.getQuery);
   }
 
   respondWithDetails(message, handles, request) {
@@ -120,24 +142,17 @@ class LensSlackBot {
     const sendAllQueryDetails = (convo) => {
       const sendFromCacheOrAPI = () => {
         handles.forEach((handle) => {
-          this.queryCache.get(handle, (error, value) => {
-            if (!error) {
-              if (!value) {
-                this.client.getQuery(handle, (query) => {
-                  this.queryCache.set(handle, query);
-                  sendQueryDetails(query.lensQuery, convo);
-                }, (error) => {
-                  convo.say("Got error finding query " + handle + ": " + error);
-                  markDetailsSent(convo);
-                })
-              } else {
-                sendQueryDetails(value.lensQuery, convo);
-              }
-            }
+          this.queryCache.get(handle, (query) => {
+            sendQueryDetails(query.lensQuery, convo);
+          }, (error) => {
+            markDetailsSent(convo);
           });
         });
       };
-      if (request.all || request.fields.indexOf('status') >= 0) {
+      if(request.sql) {
+        // Do analysis here
+        console.log("sql: " + request.sql);
+      } else if (request.all || request.fields.indexOf('status') >= 0) {
         this.queryCache.del(handles, sendFromCacheOrAPI)
       } else {
         sendFromCacheOrAPI();
