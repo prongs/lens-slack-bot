@@ -4,6 +4,8 @@ var LensClient = require("lens-node-client");
 var YAML = require("yamljs");
 var NodeCache = require("node-cache");
 var cleverbot = require("cleverbot.io");
+var mapreduce = require('mapred')(); // multi-core execution (fastest)
+
 var queryCache = new NodeCache({stdTTL: 200, checkperiod: 240});
 var replies = {
     thank: ["You're welcome.", "No problem.", "No trouble at all.", "My pleasure.", "Glad to help.", "Anytime.",
@@ -19,9 +21,7 @@ Array.prototype.randomElement = function () {
     return this[Math.floor(Math.random() * this.length)]
 };
 
-function get_reply_to(str) {
-    return (replies[str] || replies.default).randomElement() + " :" + (smileys[str] || smileys.default).randomElement() + ":";
-}
+get_reply_to = ((str) => (replies[str] || replies.default).randomElement() + " :" + (smileys[str] || smileys.default).randomElement() + ":")
 function LensSlackBot() {
     nconf.argv()
         .env()
@@ -89,6 +89,9 @@ function LensSlackBot() {
                     return x.toLowerCase();
                 });
             }
+            if (fields.length && fields.length == 1 && fields[0].indexOf('detail') == 0) {
+                fields = null;
+            }
             return fields;
         }
 
@@ -125,6 +128,7 @@ function LensSlackBot() {
                             callback: parseFieldsAndSend
                         }
                     ]);
+                    convo.next();
                 }
             }
 
@@ -133,6 +137,7 @@ function LensSlackBot() {
                 if (reply.length < 4000) {
                     if (convo) {
                         convo.say(reply);
+                        convo.next();
                         updateLastActiveTime();
                     } else {
                         bot.reply(message, reply, updateLastActiveTime);
@@ -155,23 +160,30 @@ function LensSlackBot() {
             }
 
             function sendAllQueryDetails(convo) {
-                handles.forEach(function (handle) {
-                    queryCache.get(handle, function (error, value) {
-                        if (!error) {
-                            if (!value) {
-                                client.getQuery(handle, function (query) {
-                                    queryCache.set(handle, query);
-                                    sendQueryDetails(query.lensQuery, convo);
-                                }, function (error) {
-                                    convo.say("Got error finding query " + handle + ": " + error);
-                                    markDetailsSent(convo);
-                                })
-                            } else {
-                                sendQueryDetails(value.lensQuery, convo);
+                if (!fields || fields.indexOf('status') >= 0) {
+                    queryCache.del(handles, sendFromCacheOrAPI)
+                } else {
+                    sendFromCacheOrAPI();
+                }
+                function sendFromCacheOrAPI() {
+                    handles.forEach(function (handle) {
+                        queryCache.get(handle, function (error, value) {
+                            if (!error) {
+                                if (!value) {
+                                    client.getQuery(handle, function (query) {
+                                        queryCache.set(handle, query);
+                                        sendQueryDetails(query.lensQuery, convo);
+                                    }, function (error) {
+                                        convo.say("Got error finding query " + handle + ": " + error);
+                                        markDetailsSent(convo);
+                                    })
+                                } else {
+                                    sendQueryDetails(value.lensQuery, convo);
+                                }
                             }
-                        }
+                        });
                     });
-                });
+                }
             }
 
             function sendQueryDetails(query, convo) {
@@ -205,13 +217,13 @@ function LensSlackBot() {
                 bot.startConversation(message, function (error, convo) {
                     sendAllQueryDetails(convo);
                     convo.on('end', function (convo) {
-                        console.log(convo);
+                        console.log("Conversation ended: " + convo);
                     })
                 })
             }
         }
 
-        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention', 'ambient'], function (bot, message) {
+        controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention'], function (bot, message) {
             bot.reply(message, get_reply_to('thank'));
         });
         controller.hears(["^(((" + handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],
@@ -311,33 +323,6 @@ function LensSlackBot() {
                                 convo.ask(value.arguments[arg], get_callback(value, args, i + 1));
                             }
                         }
-
-                        /*
-
-                         (function (value) {
-                         controller.hears([value], ['direct_message', 'direct_mention', 'mention', 'ambient'],
-                         function (bot, message) {
-                         if (value.arguments) {
-                         bot.startConversation(message, function (err, convo) {
-                         var questions = [];
-                         for (var arg in value.arguments) {
-                         if (value.arguments.hasOwnProperty(arg)) {
-                         var question = value.arguments[arg];
-                         questions.add((function (key, question) {
-                         return function (response, convo) {
-                         convo.ask(question, function (response, convo) {
-                         convo.say("Okay")
-                         }, {key: key})
-                         }
-                         })(arg, question));
-                         }
-                         }
-                         });
-                         }
-                         }
-                         );
-                         })(value);
-                         */
                     }
                 }
             }
