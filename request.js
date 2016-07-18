@@ -28,9 +28,6 @@ class Request {
     if (lower.indexOf("select") == 0) {
       // this is a sql.
       this.sql = str.decodeHTML();
-      if (this.sql.indexOf("from ?") == -1) {
-        this.error = "from ? is not present in the query";
-      }
     }
     let fields = str.trim().split(/\s*,\s*/);
     for (let i = 0; i < fields.length; i++) {

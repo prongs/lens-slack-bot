@@ -33,6 +33,30 @@ const getMessage = (heading, details) => {
   }
   return "`" + heading + "`:\n```" + details + "```";
 };
+// Define udfs in alasql:
+
+alasql.fn.milliseconds_since = (timestamp) => {
+  return new Date().getTime() - timestamp;
+};
+alasql.fn.milliseconds_to_time = (duration) => {
+  let milliseconds = parseInt((duration % 1000) / 100);
+  let seconds = parseInt((duration / 1000) % 60);
+  let minutes = parseInt((duration / (1000 * 60)) % 60);
+  let hours = parseInt((duration / (1000 * 60 * 60)) % 24);
+  hours = (hours < 10) ? "0" + hours : hours;
+  minutes = (minutes < 10) ? "0" + minutes : minutes;
+  seconds = (seconds < 10) ? "0" + seconds : seconds;
+  if (milliseconds < 10) {
+    milliseconds = "00" + milliseconds;
+  } else if (millseconds < 100) {
+    milliseconds = "0" + milliseconds;
+  }
+  return hours + ":" + minutes + ":" + seconds + "." + milliseconds;
+};
+
+alasql.fn.time_since = (timestamp) => {
+  return alasql.fn.milliseconds_to_time(alasql.fn.milliseconds_since(timestamp));
+};
 
 class LensSlackBot {
   constructor() {
@@ -104,7 +128,7 @@ class LensSlackBot {
       }
       detailsSent += amount;
       if (detailsSent == handles.length) {
-        convo.ask("Do you want More fields?", [
+        convo.ask("Do you want to analyze more?", [
           {
             pattern: this.bot.utterances.no,
             callback: (response, convo) => {
@@ -141,6 +165,7 @@ class LensSlackBot {
       };
       if (request.error) {
         this.reply(message, "Error in your request", request.error, convo);
+        markDetailsSent(convo, handles.length);
       } else if (request.sql) {
         // Do analysis here
         console.log("sql: " + request.sql);
