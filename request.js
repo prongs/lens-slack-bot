@@ -1,4 +1,22 @@
 "use strict";
+if (!String.prototype.encodeHTML) {
+  String.prototype.encodeHTML = function () {
+    return this.replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  };
+}
+if (!String.prototype.decodeHTML) {
+  String.prototype.decodeHTML = function () {
+    return this.replace(/&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&gt;/g, '>')
+      .replace(/&lt;/g, '<')
+      .replace(/&amp;/g, '&');
+  };
+}
 class Request {
   constructor(str) {
     if (!str) {
@@ -9,7 +27,10 @@ class Request {
     let lower = str.toLowerCase();
     if (lower.indexOf("select") == 0) {
       // this is a sql.
-      this.sql = str;
+      this.sql = str.decodeHTML();
+      if (this.sql.indexOf("from ?") == -1) {
+        this.error = "from ? is not present in the query";
+      }
     }
     let fields = str.trim().split(/\s*,\s*/);
     for (let i = 0; i < fields.length; i++) {

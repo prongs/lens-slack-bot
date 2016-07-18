@@ -3,11 +3,12 @@ var nconf = require("nconf");
 var Botkit = require('botkit');
 var LensClient = require("lens-node-client");
 var YAML = require("yamljs");
-var NodeCache = require("node-cache");
 var cleverbot = require("cleverbot.io");
-var mapreduce = require('mapred')(); // multi-core execution (fastest)
 var alasql = require('alasql'); // alasql
-var Request = require("request");
+var Request = require("./request");
+var QueryCache = require("./cache");
+var Table = require('easy-table');
+
 const replies = {
   thank: ["You're welcome.", "No problem.", "No trouble at all.", "My pleasure.", "Glad to help.", "Anytime.",
     "I serve at your pleasure."],
@@ -33,28 +34,6 @@ const getMessage = (heading, details) => {
   return "`" + heading + "`:\n```" + details + "```";
 };
 
-class QueryCache {
-  constructor(extracter) {
-    this.queryCache = new NodeCache({stdTTL: 200, checkperiod: 240});
-    this.extracter = extracter;
-  }
-  get(handle, callback, error_callback) {
-    this.queryCache.get(handle, (error, value)=>{
-      if (value) {
-        callback(value);
-      } else {
-        this.extracter(handle, (query) => {
-          this.queryCache.set(handle, query);
-          callback(query);
-        }, (error) => {
-          console.error("Value doesn't exist in system for " + handle + " error: " + error);
-          error_callback(error);
-        });
-      }
-    });
-  }
-}
-
 class LensSlackBot {
   constructor() {
     nconf.argv()
@@ -73,21 +52,57 @@ class LensSlackBot {
     this.updateLastActiveTime = () => {
       this.lastActiveTime = new Date();
     };
-    this.queryCache = new QueryCache(this.client.getQuery);
+    this.queryCache = new QueryCache(this.client.getQuery.bind(this.client));
+  }
+
+  getRequest(str) {
+    if (this.team_data.sql_shortcuts && this.team_data.sql_shortcuts[str]) {
+      return new Request(this.team_data.sql_shortcuts[str])
+    }
+    return new Request(str);
+  }
+
+  reply(message, heading, details, convo) {
+    const reply = getMessage(heading, details);
+    if (reply.length < 4000) {
+      if (convo) {
+        convo.say(reply);
+        convo.next();
+        this.updateLastActiveTime();
+      } else {
+        this.bot.reply(message, reply, this.updateLastActiveTime);
+      }
+    } else {
+      if (typeof(details) == "object") {
+        details = YAML.stringify(details);
+      }
+      this.bot.api.files.upload({
+        content: details,
+        filetype: 'yaml',
+        title: heading,
+        filename: heading,
+        channels: message.channel
+      }, (error, json) => {
+        console.log(error);
+        console.log(json);
+      });
+    }
   }
 
   respondWithDetails(message, handles, request) {
     let detailsSent = 0;
 
-    const parseFieldsAndSend = (response, convo) => {
-      request = new Request(response.text);
+    const parseRequestAndSend = (response, convo) => {
+      request = this.getRequest(response.text);
       detailsSent = 0;
       sendAllQueryDetails(convo);
-      convo.next();
     };
 
-    const markDetailsSent = (convo) => {
-      detailsSent++;
+    const markDetailsSent = (convo, amount) => {
+      if (!amount) {
+        amount = 1;
+      }
+      detailsSent += amount;
       if (detailsSent == handles.length) {
         convo.ask("Do you want More fields?", [
           {
@@ -100,58 +115,76 @@ class LensSlackBot {
           {
             pattern: this.bot.utterances.yes,
             callback: (response, convo) => {
-              convo.ask("Tell me.", parseFieldsAndSend);
+              convo.ask("Tell me.", parseRequestAndSend);
               convo.next();
             }
           },
           {
             default: true,
-            callback: parseFieldsAndSend
+            callback: parseRequestAndSend
           }
         ]);
         convo.next();
       }
     };
-
-    const reply = (heading, details, convo) => {
-      const reply = getMessage(heading, details);
-      if (reply.length < 4000) {
-        if (convo) {
-          convo.say(reply);
-          convo.next();
-          this.updateLastActiveTime();
-        } else {
-          this.bot.reply(message, reply, this.updateLastActiveTime);
-        }
-      } else {
-        if (typeof(details) == "object") {
-          details = YAML.stringify(details);
-        }
-        this.bot.api.files.upload({
-          content: details,
-          filetype: 'yaml',
-          title: heading,
-          filename: heading,
-          channels: message.channel
-        }, (error, json) => {
-          console.log(error);
-          console.log(json);
-        });
-      }
-    };
     const sendAllQueryDetails = (convo) => {
       const sendFromCacheOrAPI = () => {
-        handles.forEach((handle) => {
-          this.queryCache.get(handle, (query) => {
-            sendQueryDetails(query.lensQuery, convo);
-          }, (error) => {
-            markDetailsSent(convo);
+        this.queryCache.get(handles, (queries)=> {
+          queries.forEach((query)=> {
+            if (query) {
+              sendQueryDetails(query.lensQuery, convo);
+            } else {
+              markDetailsSent(convo);
+            }
           });
         });
       };
-      if(request.sql) {
+      if (request.error) {
+        this.reply(message, "Error in your request", request.error, convo);
+      } else if (request.sql) {
         // Do analysis here
         console.log("sql: " + request.sql);
+        this.queryCache.get(handles, (queries)=> {
+          console.log(JSON.stringify(queries));
+          alasql.promise(request.sql, [queries.map((query) => {
+            query = query.lensQuery;
+            if (query.queryConf && query.queryConf.properties) {
+              let conf = {};
+              query.queryConf.properties.reduce((obj, x)=> {
+                let keys = x.key.split(".");
+                let local_conf = conf;
+                for (let i = 0; i < keys.length - 1; i++) {
+                  let key = keys[i];
+                  if (!local_conf[key]) {
+                    local_conf[key] = {};
+                  }
+                  local_conf = local_conf[key];
+                }
+                local_conf[keys[keys.length - 1]] = x.value;
+              });
+              query.queryConf = conf;
+            }
+            return query;
+          })]).then((result)=> {
+            let table = new Table();
+            result.forEach((row)=> {
+              for (let key in row) {
+                let value = row[key];
+                if (typeof (value) == "object") {
+                  value = JSON.stringify(value);
+                }
+                table.cell(key, value);
+              }
+              table.newRow();
+            });
+            this.reply(message, request.sql, table.toString(), convo);
+            markDetailsSent(convo, queries.length);
+          }).catch((error)=> {
+            console.log("error: " + error);
+            this.reply(message, "Query Invalid: " + error);
+            markDetailsSent(convo, queries.length);
+          });
+        });
       } else if (request.all || request.fields.indexOf('status') >= 0) {
         this.queryCache.del(handles, sendFromCacheOrAPI)
       } else {
@@ -163,9 +196,9 @@ class LensSlackBot {
       const fields = request.fields;
       if (fields && fields.length == 1 && !request.all) {
         if (fields[0] in query) {
-          reply(fields[0] + " for " + query.queryHandle.handleId, query[fields[0]], convo);
+          this.reply(message, fields[0] + " for " + query.queryHandle.handleId, query[fields[0]], convo);
         } else {
-          reply("No field named " + fields[0] + " in query " + query.queryHandle.handleId, "", convo);
+          this.reply(message, "No field named " + fields[0] + " in query " + query.queryHandle.handleId, "", convo);
         }
       } else {
         let data = {};
@@ -179,9 +212,9 @@ class LensSlackBot {
           data = query;
         }
         if (data) {
-          reply(query.queryHandle.handleId, data, convo);
+          this.reply(message, query.queryHandle.handleId, data, convo);
         } else {
-          reply("No data found for " + query.queryHandle.handleId, "", convo);
+          this.reply(message, "No data found for " + query.queryHandle.handleId, "", convo);
         }
       }
       markDetailsSent(convo);
@@ -199,13 +232,24 @@ class LensSlackBot {
 
   start() {
     console.log("starting lens bot");
-    const controller = Botkit.slackbot({debug: true});
-    this.bot = controller.spawn({token: this.slackToken});
-    this.bot.startRTM((error, bot, response) => {
+    const controller = Botkit.slackbot({debug: true, json_file_store: nconf.get("HOME") + '/lens-slack-bot-store'});
+    const bot = controller.spawn({token: this.slackToken});
+    bot.startRTM((error, bot, response) => {
       if (error) {
         console.error(error);
         throw new Error("Couldn't connect to slack", error);
       }
+      // read team data here, since team id is not available before starting RTM
+      bot.identifyTeam((error, team_id)=> {
+        if (error) {
+          console.log("Error reading team data");
+          process.exit(1);
+        }
+        controller.storage.teams.get(team_id, (error, team_data) => {
+          this.team_data = team_data || {};
+        })
+      });
+      this.bot = bot;
     });
     controller.on('rtm_close', () => {
       this.client.invalidateSession(() => {
@@ -229,7 +273,7 @@ class LensSlackBot {
     controller.hears(["^(((" + this.handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],
       ['direct_message', 'direct_mention', 'mention', 'ambient'],
       (bot, message) => {
-        this.respondWithDetails(message, message.match[1].match(this.handleRegex), new Request(message.match[5]));
+        this.respondWithDetails(message, message.match[1].match(this.handleRegex), this.getRequest(message.match[5]));
       }
     );
     controller.hears(["^(all\\s*)?(\\w+)\\squeries(.*?)(:\\s*(.*?))?$"],
@@ -262,7 +306,7 @@ class LensSlackBot {
         }
         let fields, request;
         if (message.match[5]) {
-          request = new Request(message.match[5]);
+          request = this.getRequest(message.match[5]);
         }
         const reply = (queries) => {
           let reply = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
@@ -292,6 +336,62 @@ class LensSlackBot {
         }
       }
     );
+    controller.hears(["what do you know", "what have you learned"], ["direct_message", "direct_mention"], (bot, message) => {
+      for (let key in this.team_data) {
+        if (this.team_data.hasOwnProperty(key) && key != "id") {
+          this.reply(message, "I know " + key, this.team_data[key]);
+        }
+      }
+    });
+    controller.hears(["^training$"], ["direct_message", "direct_mention"], (bot, message) => {
+      const saveSql = (name, sql, callback) => {
+        if (!this.team_data['sql_shortcuts']) {
+          this.team_data['sql_shortcuts'] = {};
+        }
+        this.team_data.sql_shortcuts[name] = sql;
+        this.team_data.id = message.team;
+        controller.storage.teams.save(this.team_data, (err) => {
+          if (err) {
+            console.log("Error saving data");
+          } else {
+            callback();
+          }
+        });
+      };
+      const askSql = (response, convo) => {
+        convo.ask("Tell me your sql", (response, convo) => {
+          askName(response, convo);
+          convo.next();
+        }, {key: 'sql'});
+        convo.next();
+      };
+      const askName = (response, convo) => {
+        convo.ask("Tell me the shorthand name for the sql", (response, convo) => {
+          let name = convo.extractResponse("name");
+          let sql = convo.extractResponse("sql");
+          saveSql(name, sql, ()=> {
+            convo.say("Saved `" + sql + "` as `" + name + "`");
+            convo.next();
+          });
+          convo.next();
+        }, {key: 'name'});
+      };
+      this.bot.startConversation(message, (error, convo) => {
+        convo.ask("What do you want me to learn?", [
+          {
+            pattern: "sql",
+            callback: askSql
+          },
+          {
+            default: true,
+            callback: (error, convo) => {
+              convo.silentRepeat();
+            }
+          }
+        ]);
+        convo.next();
+      });
+    });
   }
 }
 module.exports = LensSlackBot;

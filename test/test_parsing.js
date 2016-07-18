@@ -18,9 +18,34 @@ describe("Request parsing", ()=> {
     r.all.should.equal(false);
     done();
   });
-  it("should check for details word in the word list", (done)=>{
+  it("should check for details word in the word list", (done)=> {
     let r = request("detail blah blah");
     r.all.should.equal(true);
+    done();
+  });
+  it("should recoginize sql", (done)=> {
+    let sql = "select * from ?";
+    let r = request(sql);
+    r.sql.should.equal(sql);
+    done();
+  });
+  it("should decode html from sql", (done)=> {
+    let sql = "select a-&gt; from ?";
+    let r = request(sql);
+    r.sql.should.equal(sql.decodeHTML());
+    done();
+  });
+  it("should append from ? at the end", (done)=> {
+    let sql = "select a";
+    let r = request(sql);
+    r.sql.should.equal(sql + " from ?");
+    done();
+  });
+  it("should append from ? at the middle", (done)=> {
+    let before = "select a, count(*) num";
+    let after = " group by b order by c";
+    let r = request(before + after);
+    r.sql.should.equal(before + " from ?" + after);
     done();
   });
 });
