@@ -155,6 +155,7 @@ class LensSlackBot {
       }
     };
     const sendAllQueryDetails = (convo) => {
+      this.bot.startTyping(message);
       const sendFromCacheOrAPI = () => {
         this.queryCache.get(handles, (queries)=> {
           queries.forEach((query)=> {
@@ -357,7 +358,7 @@ class LensSlackBot {
             }
           });
         };
-
+        this.bot.startTyping(message);
         if (!('user' in qs)) {
           this.bot.api.users.info({user: message.user}, (error, json)=> {
             if (json && json.user && json.user.name) {
