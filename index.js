@@ -3,7 +3,6 @@ var nconf = require("nconf");
 var Botkit = require('botkit');
 var LensClient = require("lens-node-client");
 var YAML = require("yamljs");
-var cleverbot = require("cleverbot.io");
 var alasql = require('alasql'); // alasql
 var Request = require("./request");
 var QueryCache = require("./cache");

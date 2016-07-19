@@ -13,7 +13,8 @@ This is developed using [botkit](https://github.com/howdyai/botkit/) and [lens-n
          "slackToken":"your-bot's slack-token",
          "lensServerBaseUrl": "http://lens-installation/lensapi/",
          "lensUsername":"admin-user-name",
-         "lensPassword":"admin-user-password"
+         "lensPassword":"admin-user-password",
+         "upgrade_secret": "secret with which you can ask the bot to suicide."
      } 
 ```
 * Run the following code with node:
@@ -21,32 +22,43 @@ This is developed using [botkit](https://github.com/howdyai/botkit/) and [lens-n
 var bot = new LensSlackBot();
 bot.start();
 ```
-* Go to slack and wait for your bot to come online :)
+* Go to slack and wait for your bot to come online :) The upgrade secret is useful when you have a script that's starting bot in a loop. 
+So you ask the bot to upgrade, provide the upgrade secret, and it goes offline. Then the external script can bring it up again. 
 
 
 ## What can this bot do:
 
-Once your bot is online, it accepts the following types of commands:
+### Query analysis
 
-### query-handle
-It'll reply with the details of the query when you give him the id.
-### multiple query-handles separated by comma/space/whatever
-It'll do the same thing as above, but for all queries
-### single/multiple query ids followed by ':' followed by the fields you want
-It'll do the same thing as the above two, except that it'll not give you the entire query detail, it'll just give you the fields you wanted, as specified by the part of your message after the `:`
-example message: `90625106-3bd7-42c2-b324-2da753c0de22: status, priority, driver query, user query`
-### query status followed by the word 'queries'
-Will give you the list of your queries with the given status
-e.g. `running queries`, `queued queries`
-### The above command followed by extra filters
-Same thing, the filters will be considered. Possible Filters are defined by [lens query list api](http://lens.apache.org/resource_QueryServiceResource.html#path__queryapi_queries.html). 
-e.g. `running queries queryName=my_query`
-### Either of the above two commands prefixed by 'all'
-Does the same thing as those commands, except it gives you the list of queries of `all` users, not just yours.
-### Either of the above three commands followed by ':' and list of fields to extract
-First gives the list of queries considering your filters. Then for each query, extracts the desired fields and gives them. 
-e.g. `all queued queries: priority`
-You can ask for all details like this: `all queued queries: details`
+A command is made up of two parts: collection, and action. Collection and action are separated by `:`. The bot will understand 
+the collection, run the action over that and reply to you in chat. Then it'll ask if you want to analyze more. There you can 
+provide more action commands. Here, the context is the original collection, and you can put action commands to analyze over the
+same collection. Once you reply no, the context is lost, and you can analyze over a different collection. 
+
+#### How to specify a Collection
+
+* Space separated list of query handles
+* `running queries` == your queries that are in running state. Similarly `queued queries`, `successful queries`, `failed queries` etc. 
+* `all running queries` == all queries in running state. Similarly for other query states.
+
+#### Actions:
+
+* Comma separated List of fields to extract. e.g. `status, user query`. Note that here, `user query` translates to `userQuery`, but you can specify whichever is comfortable. 
+* A sql. e.g. `select priority, count(*) num from ? group by priority`. We use [alasql](https://github.com/agershun/alasql) for running
+  sql on in-memory data. The first `?` in the query refers to the collection currently in context. 
+* A shortcut which the bot already knows. The shortcuts are developed by training the bot. 
+
+### Training
+As mentioned earlier, sql analysis can be done on a query collection. Now, Writing sql everytime could be troublesome, so there's a 
+feature to save your sql queries so that they can be refered by a short name. 
+
+* You can ask the bot to show what it has learned so far by asking `what do you know`/`what have you learned`.
+* You can perform training by writing `training` in a private chat with the bot. Then Answer `sql` for `what do you want me to learn` and
+   answer the next questions. 
+
+### Upgrade
+You can tell the bot to `upgrade` itself. It'll ask you for an upgrade secret. The secret should be deployed in the config xml
+and shared with people who should have the capability to upgrade. 
 
 ## More chat instructions to be added soon :)
 ## Contributing
