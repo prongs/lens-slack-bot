@@ -23,7 +23,7 @@ Array.prototype.randomElement = function () {
   return this[Math.floor(Math.random() * this.length)]
 };
 
-const get_reply_to = ((str) => (replies[str] || replies.default).randomElement() + " :" + (smileys[str] || smileys.default).randomElement() + ":")
+const get_reply_to = ((str) => (replies[str] || replies.default).randomElement() + " :" + (smileys[str] || smileys.default).randomElement() + ":");
 const getMessage = (heading, details) => {
   if (!details || details == "") {
     return heading;
@@ -56,6 +56,10 @@ alasql.fn.milliseconds_to_time = (duration) => {
 
 alasql.fn.time_since = (timestamp) => {
   return alasql.fn.milliseconds_to_time(alasql.fn.milliseconds_since(timestamp));
+};
+
+alasql.fn.to_time = (timestamp) => {
+  return new Date(timestamp);
 };
 
 class LensSlackBot {
@@ -173,9 +177,13 @@ class LensSlackBot {
           console.log(JSON.stringify(queries));
           alasql.promise(request.sql, [queries.map((query) => {
             query = query.lensQuery;
+            query.handle = query.queryHandle.handleId;
             if (query.queryConf && query.queryConf.properties) {
               let conf = {};
               query.queryConf.properties.reduce((obj, x)=> {
+                if (x.key.indexOf("mapred") == 0 && x.key.indexOf("queue") > 0) {
+                  query.queue = x.value;
+                }
                 let keys = x.key.split(".");
                 let local_conf = conf;
                 for (let i = 0; i < keys.length - 1; i++) {
@@ -194,13 +202,15 @@ class LensSlackBot {
             let table = new Table();
             result.forEach((row)=> {
               for (let key in row) {
-                let value = row[key];
-                if (typeof (value) == "object") {
-                  value = JSON.stringify(value);
+                if (row.hasOwnProperty(key)) {
+                  let value = row[key];
+                  if (typeof (value) == "object") {
+                    value = JSON.stringify(value);
+                  }
+                  table.cell(key, value);
                 }
-                table.cell(key, value);
+                table.newRow();
               }
-              table.newRow();
             });
             this.reply(message, request.sql, table.toString(), convo);
             markDetailsSent(convo, queries.length);
@@ -329,7 +339,7 @@ class LensSlackBot {
             qs['user'] = 'all';
           }
         }
-        let fields, request;
+        let request;
         if (message.match[5]) {
           request = this.getRequest(message.match[5]);
         }
@@ -417,6 +427,26 @@ class LensSlackBot {
         convo.next();
       });
     });
+    if (nconf.get("upgrade_secret")) {
+      controller.hears(["^upgrade$"], ["direct_message", "direct_mention"], (bot, message) => {
+        this.bot.startConversation(message, (error, convo) => {
+          convo.ask("Provide the upgrade secret.", [
+            {
+              default: true,
+              callback: (error, convo) => {
+                if (convo.extractResponse('secret') == nconf.get("upgrade_secret")) {
+                  convo.say("Going down for upgrade.");
+                  convo.next();
+                  process.exit();
+                }
+                convo.next();
+              }
+            }
+          ], {key: 'secret'});
+          convo.next();
+        });
+      });
+    }
   }
 }
 module.exports = LensSlackBot;
