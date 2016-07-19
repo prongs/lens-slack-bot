@@ -209,8 +209,8 @@ class LensSlackBot {
                   }
                   table.cell(key, value);
                 }
-                table.newRow();
               }
+              table.newRow();
             });
             this.reply(message, request.sql, table.toString(), convo);
             markDetailsSent(convo, queries.length);
