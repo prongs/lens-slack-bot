@@ -125,55 +125,66 @@ class LensSlackBot {
       sendAllQueryDetails(convo);
     };
 
-    const markDetailsSent = (convo, amount) => {
+    const markDetailsSent = (convo, amount, end) => {
       if (!amount) {
         amount = 1;
       }
       detailsSent += amount;
       if (detailsSent == handles.length) {
-        convo.ask("Do you want to analyze more?", [
-          {
-            pattern: this.bot.utterances.no,
-            callback: (response, convo) => {
-              convo.say(get_reply_to('exit'));
-              convo.next();
+        if (!end) {
+          convo.ask("Do you want to analyze more?", [
+            {
+              pattern: this.bot.utterances.no,
+              callback: (response, convo) => {
+                convo.say(get_reply_to('exit'));
+                convo.next();
+              }
+            },
+            {
+              pattern: this.bot.utterances.yes,
+              callback: (response, convo) => {
+                convo.ask("Tell me.", parseRequestAndSend);
+                convo.next();
+              }
+            },
+            {
+              default: true,
+              callback: parseRequestAndSend
             }
-          },
-          {
-            pattern: this.bot.utterances.yes,
-            callback: (response, convo) => {
-              convo.ask("Tell me.", parseRequestAndSend);
-              convo.next();
-            }
-          },
-          {
-            default: true,
-            callback: parseRequestAndSend
-          }
-        ]);
+          ]);
+        }
         convo.next();
       }
     };
     const sendAllQueryDetails = (convo) => {
       this.bot.startTyping(message);
       const sendFromCacheOrAPI = () => {
-        this.queryCache.get(handles, (queries)=> {
-          queries.forEach((query)=> {
-            if (query) {
-              sendQueryDetails(query.lensQuery, convo);
-            } else {
-              markDetailsSent(convo);
-            }
-          });
+        this.queryCache.get(handles, (errors, queries)=> {
+          if (errors.length == queries.length) {
+            this.reply(message, "Few errors encountered while getting queries", JSON.stringify(errors), convo);
+            markDetailsSent(convo, queries.length, true);
+          } else {
+            queries.forEach((query)=> {
+              if (query) {
+                sendQueryDetails(query.lensQuery, convo);
+              } else {
+                // ignore the error for now.
+                markDetailsSent(convo);
+              }
+            });
+          }
         });
       };
       if (request.error) {
         this.reply(message, "Error in your request", request.error, convo);
-        markDetailsSent(convo, handles.length);
+        markDetailsSent(convo, handles.length, true);
       } else if (request.sql) {
         // Do analysis here
         console.log("sql: " + request.sql);
-        this.queryCache.get(handles, (queries)=> {
+        this.queryCache.get(handles, (errors, queries)=> {
+          if (errors) {
+            this.reply(message, "Few errors encountered while getting queries", JSON.stringify(errors), convo);
+          }
           console.log(JSON.stringify(queries));
           alasql.promise(request.sql, [queries.map((query) => {
             query = query.lensQuery;

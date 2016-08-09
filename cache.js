@@ -6,44 +6,50 @@ class Cache {
     this.extracter = extracter;
   }
 
-  get_single(key, callback, error_callback) {
+  get_single(key, callback) {
     this.cache.get(key, (error, value)=> {
       if (value) {
         callback(value);
       } else {
         this.extracter(key, (value) => {
           this.cache.set(key, value);
-          callback(value);
+          callback && callback(null, value);
         }, (error) => {
-          console.error("Value doesn't exist in system for " + key + " error: " + error);
-          error_callback(error);
+          error = error || "Value doesn't exist in system for " + key;
+          console.error(error);
+          callback && callback(error, null);
         });
       }
     });
   }
 
-  get_multiple(keys, callback, error_callback) {
+  get_multiple(keys, callback) {
     let counter = 0;
     let values = new Array(keys.length);
+    let errors = [];
+    const mark = () => {
+       counter++;
+      if (counter == keys.length) {
+        callback && callback(errors, values);
+      }
+    };
     keys.forEach((item, index, array) => {
-      this.get(item, (value) => {
-        counter++;
-        values[index] = value;
-        if (counter == keys.length) {
-          callback(values);
+      this.get_single(item, (error, value) => {
+        if (value) {
+          values[index] = value;
+        } else {
+          values[index] = undefined;
+          errors.push(error);
         }
-      }, (error) => {
-        // increase the counter neverthless.
-        values[index] = undefined;
-        counter++;
+        mark();
       });
     })
   }
-  get(key_or_keys, callback, error_callback) {
+  get(key_or_keys, callback) {
     if(Object.prototype.toString.call( key_or_keys ) =="[object Array]") {
-      this.get_multiple(key_or_keys, callback, error_callback);
+      this.get_multiple(key_or_keys, callback);
     } else {
-      this.get_single(key_or_keys, callback, error_callback);
+      this.get_single(key_or_keys, callback);
     }
   }
 

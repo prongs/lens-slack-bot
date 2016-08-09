@@ -25,7 +25,7 @@ class Request {
     }
     this.all = false;
     let lower = str.toLowerCase();
-    if (lower.indexOf("select") == 0) {
+    if (lower.indexOf("select ") == 0) {
       // this is a sql.
       this.sql = str.decodeHTML();
     }
