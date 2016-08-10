@@ -23,8 +23,8 @@ describe("Pass through Cache testing", ()=> {
 });
 
 describe("Failing cache testing", ()=> {
-  const cache = new Cache((x, callback) => {
-    callback(undefined);
+  const cache = new Cache((x, callback, error_callback) => {
+    error_callback("error");
   });
   it("should fail on get", (done) => {
     cache.get(2, (error, value) => {

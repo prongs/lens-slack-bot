@@ -35,17 +35,17 @@ describe("Request parsing", ()=> {
     r.sql.should.equal(sql.decodeHTML());
     done();
   });
-  it("should append from ? at the end", (done)=> {
-    let sql = "select a";
-    let r = request(sql);
-    r.sql.should.equal(sql + " from ?");
-    done();
-  });
-  it("should append from ? at the middle", (done)=> {
-    let before = "select a, count(*) num";
-    let after = " group by b order by c";
-    let r = request(before + after);
-    r.sql.should.equal(before + " from ?" + after);
-    done();
-  });
+  //it("should append from ? at the end", (done)=> {
+  //  let sql = "select a";
+  //  let r = request(sql);
+  //  r.sql.should.equal(sql + " from ?");
+  //  done();
+  //});
+  //it("should append from ? at the middle", (done)=> {
+  //  let before = "select a, count(*) num";
+  //  let after = " group by b order by c";
+  //  let r = request(before + after);
+  //  r.sql.should.equal(before + " from ?" + after);
+  //  done();
+  //});
 });

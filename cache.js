@@ -1,5 +1,4 @@
 "use strict";
-var Promise = require("bluebird");
 var NodeCache = require("node-cache");
 class Cache {
   constructor(extracter) {
