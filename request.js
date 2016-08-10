@@ -29,6 +29,12 @@ class Request {
       // this is a sql.
       this.sql = str.decodeHTML();
     }
+    if (str.indexOf(":") > 0 ){
+      let context = str.split(":")[0].trim();
+      if (context && context.toLowerCase().indexOf("queries")) {
+        throw "You're trying to start new conversation.";
+      }
+    }
     let fields = str.trim().split(/\s*,\s*/);
     for (let i = 0; i < fields.length; i++) {
       fields[i] = fields[i].replace(/\s(.)/g, (x) => x.toUpperCase().trim()).replace(/^(.)/, (x) => x.toLowerCase());

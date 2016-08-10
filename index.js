@@ -7,6 +7,7 @@ var alasql = require('alasql'); // alasql
 var Request = require("./request");
 var QueryCache = require("./cache");
 var Table = require('easy-table');
+var Promise = require("bluebird");
 
 const replies = {
   thank: ["You're welcome.", "No problem.", "No trouble at all.", "My pleasure.", "Glad to help.", "Anytime.",
@@ -116,14 +117,25 @@ class LensSlackBot {
     }
   }
 
-  respondWithDetails(message, handles, request) {
+  respondWithDetails(message, handles, request, stop) {
     let detailsSent = 0;
 
     const parseRequestAndSend = (response, convo) => {
-      request = this.getRequest(response.text);
-      detailsSent = 0;
-      sendAllQueryDetails(convo);
+      let parsedRequest = null;
+      try {
+        parsedRequest = this.getRequest(response.text);
+      } catch (e) {
+        convo.say("Illegal request. Finish this conversation first. " + e);
+        convo.repeat();
+        convo.next();
+      }
+      if (parsedRequest) {
+        request = parsedRequest;
+        detailsSent = 0;
+        sendAllQueryDetails(convo);
+      }
     };
+
 
     const markDetailsSent = (convo, amount, end) => {
       if (!amount) {
@@ -131,7 +143,7 @@ class LensSlackBot {
       }
       detailsSent += amount;
       if (detailsSent == handles.length) {
-        if (!end) {
+        if ((!stop) && (!end)) {
           convo.ask("Do you want to analyze more?", [
             {
               pattern: this.bot.utterances.no,
@@ -149,7 +161,15 @@ class LensSlackBot {
             },
             {
               default: true,
-              callback: parseRequestAndSend
+              callback: (response, convo) => {
+                try {
+                  parseRequestAndSend(response, convo);
+                } catch (e) {
+                  convo.say("Illegal Request: " + e);
+                  convo.repeat();
+                  convo.next();
+                }
+              }
             }
           ]);
         }
@@ -281,6 +301,8 @@ class LensSlackBot {
     console.log("starting lens bot");
     const controller = Botkit.slackbot({debug: true, json_file_store: nconf.get("HOME") + '/lens-slack-bot-store'});
     const bot = controller.spawn({token: this.slackToken});
+    const handlesRegex = "(((" + this.handleRegexString + ")\\s*,?\\s*)+)";
+    const collectionRegex = "(all\\s*)?(\\w+)\\squeries(.*?)";
     bot.startRTM((error, bot, response) => {
       if (error) {
         console.error(error);
@@ -317,21 +339,21 @@ class LensSlackBot {
     controller.hears(["thank"], ['direct_message', 'direct_mention', 'mention'], (bot, message) => {
       this.bot.reply(message, get_reply_to('thank'));
     });
-    controller.hears(["^(((" + this.handleRegexString + ")\\s*,?\\s*)+)(:(.*?))?$"],
+    controller.hears(["^" + handlesRegex + "(:\\s*(.*?))?$"],
       ['direct_message', 'direct_mention', 'mention', 'ambient'],
       (bot, message) => {
         this.respondWithDetails(message, message.match[1].match(this.handleRegex), this.getRequest(message.match[5]));
       }
     );
-    controller.hears(["^(all\\s*)?(\\w+)\\squeries(.*?)(:\\s*(.*?))?$"],
-      ['direct_message', 'direct_mention', 'mention', 'ambient'], (bot, message) => {
+    const parseCollection = (message, collectionString) => {
+      collectionString = collectionString || message.match[0];
+      return new Promise((resolve, reject)=> {
+        const match = collectionString.match(collectionRegex);
         const qs = {};
-        if (message.match[3]) {
-          const params = message.match[3].trim().split(/[^a-zA-Z0-9_/.-]+/);
+        if (match[3]) {
+          const params = match[3].trim().split(/[^a-zA-Z0-9_/.-]+/);
           if (params.length % 2 != 0) {
-            this.bot.reply(message,
-              "Sorry couldn't parse your arguments: " + message.match[3], this.updateLastActiveTime);
-            return;
+            throw "Sorry couldn't parse your params: " + match[3];
           } else {
             for (let i = 0; i < params.length; i += 2) {
               qs[params[i]] = params[i + 1];
@@ -339,50 +361,76 @@ class LensSlackBot {
           }
         }
         if (!('state' in qs)) {
-          if (message.match[2]) {
-            qs['state'] = message.match[2]
+          if (match[2]) {
+            qs['state'] = match[2]
           }
         }
         if ('state' in qs) {
           qs['state'] = qs['state'].toUpperCase().trim();
         }
         if (!('user' in qs)) {
-          if (message.match[1] || message.text.indexOf("all") > -1) {
+          if (match[1] || collectionString.indexOf("all") > -1) {
             qs['user'] = 'all';
           }
         }
-        let request;
-        if (message.match[5]) {
-          request = this.getRequest(message.match[5]);
-        }
-        const reply = (queries) => {
-          let reply = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
-          for (let i = 0; i < queries.length; i++) {
-            queries[i] = queries[i].queryHandle.handleId;
-          }
-          if (queries.length > 0) {
-            reply = reply + "\n```" + YAML.stringify(queries) + "```";
-          }
-          this.bot.reply(message, reply, () => {
-            this.updateLastActiveTime();
-            if (request) {
-              this.respondWithDetails(message, queries, request);
-            }
-          });
-        };
-        this.bot.startTyping(message);
         if (!('user' in qs)) {
-          this.bot.api.users.info({user: message.user}, (error, json)=> {
+          return this.bot.api.users.info({user: message.user}, (error, json)=> {
             if (json && json.user && json.user.name) {
               qs['user'] = json.user.name;
-              this.client.listQueries(qs, reply);
+              resolve(qs);
+            } else {
+              reject(error);
             }
-          });
+          })
         } else {
-          this.client.listQueries(qs, reply);
+          resolve(qs);
         }
+      });
+    };
+    controller.hears(["^" + collectionRegex + "(:\\s*(.*?))?$"],
+      ['direct_message', 'direct_mention', 'mention', 'ambient'], (bot, message) => {
+        this.bot.startTyping(message);
+        parseCollection(message).then((qs)=> {
+          this.client.listQueries(qs, (queries)=> {
+            queries = queries.map(query=>query.queryHandle.handleId);
+            let reply = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
+            if (queries.length > 0) {
+              reply = reply + "\n```" + YAML.stringify(queries) + "```";
+            }
+            this.bot.reply(message, reply, () => {
+              this.updateLastActiveTime();
+              let request;
+              if (message.match[5]) {
+                request = this.getRequest(message.match[5]);
+              }
+              if (request) {
+                this.respondWithDetails(message, queries, request);
+              }
+            });
+          });
+        }).catch((error)=> {
+          this.bot.reply(message, "Sorry couldn't parse your arguments: " + message.match[3] + ": "
+            + JSON.stringify(error), this.updateLastActiveTime);
+        });
       }
     );
+    // one-time analysis
+    controller.hears([
+      //"select .*? from (" + handlesRegex + ").*?",
+      "select .*? from (" + collectionRegex + ").*?"
+    ], ['direct_message', 'direct_mention', 'mention', 'ambient'], (bot, message) => {
+      this.bot.startTyping(message);
+      parseCollection(message, message.match[1]).then((qs)=> {
+        this.client.listQueries(qs, (queries)=> {
+          queries = queries.map(query=>query.queryHandle.handleId);
+          this.respondWithDetails(message, queries, this.getRequest(message.text.replace(message.match[1], "?")), true);
+        });
+      }).catch((error)=> {
+        this.bot.reply(message, "Sorry couldn't parse your arguments: " + message.match[3] + ": "
+          + JSON.stringify(error), this.updateLastActiveTime);
+      })
+    });
+
     controller.hears(["what do you know", "what have you learned"], ["direct_message", "direct_mention"], (bot, message) => {
       for (let key in this.team_data) {
         if (this.team_data.hasOwnProperty(key) && key != "id") {
