@@ -160,7 +160,7 @@ class LensSlackBot {
       this.bot.startTyping(message);
       const sendFromCacheOrAPI = () => {
         this.queryCache.get(handles, (errors, queries)=> {
-          if (errors.length == queries.length) {
+          if (errors && errors.length && errors.length == queries.length) {
             this.reply(message, "Few errors encountered while getting queries", JSON.stringify(errors), convo);
             markDetailsSent(convo, queries.length, true);
           } else {
@@ -182,9 +182,10 @@ class LensSlackBot {
         // Do analysis here
         console.log("sql: " + request.sql);
         this.queryCache.get(handles, (errors, queries)=> {
-          if (errors) {
+          if (errors && errors.length) {
             this.reply(message, "Few errors encountered while getting queries", JSON.stringify(errors), convo);
           }
+          queries = queries.filter(query=>query);
           console.log(JSON.stringify(queries));
           alasql.promise(request.sql, [queries.map((query) => {
             query = query.lensQuery;

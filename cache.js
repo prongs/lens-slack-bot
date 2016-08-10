@@ -1,4 +1,5 @@
 "use strict";
+var Promise = require("bluebird");
 var NodeCache = require("node-cache");
 class Cache {
   constructor(extracter) {
@@ -9,7 +10,7 @@ class Cache {
   get_single(key, callback) {
     this.cache.get(key, (error, value)=> {
       if (value) {
-        callback(value);
+        callback && callback(null, value);
       } else {
         this.extracter(key, (value) => {
           this.cache.set(key, value);
