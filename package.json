@@ -24,12 +24,13 @@
   "homepage": "https://github.com/prongs/lens-slack-bot#readme",
   "dependencies": {
     "alasql": "^0.2.7",
+    "bluebird": "latest",
     "botkit": "^0.2.2",
     "easy-table": "^1.0.0",
+    "later": "^1.2.0",
     "nconf": "^0.8.4",
     "node-cache": "^3.2.0",
-    "yamljs": "^0.2.6",
-    "bluebird": "latest"
+    "yamljs": "^0.2.6"
   },
   "devDependencies": {
     "babel-core": "^5.4.3",

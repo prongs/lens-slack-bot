@@ -18,7 +18,7 @@ if (!String.prototype.decodeHTML) {
   };
 }
 class Request {
-  constructor(str) {
+  constructor(str, title) {
     if (!str) {
       this.all = true;
       return;
@@ -28,6 +28,7 @@ class Request {
     if (lower.indexOf("select ") == 0) {
       // this is a sql.
       this.sql = str.decodeHTML();
+      this.title = title || this.sql;
     }
     if (str.indexOf(":") > 0 ){
       let context = str.split(":")[0].trim();
@@ -39,6 +40,7 @@ class Request {
     for (let i = 0; i < fields.length; i++) {
       fields[i] = fields[i].replace(/\s(.)/g, (x) => x.toUpperCase().trim()).replace(/^(.)/, (x) => x.toLowerCase());
     }
+    this.title = title || str;
     if (fields.length && fields.length == 1 && fields[0].indexOf('detail') == 0) {
       this.all = true;
       return;

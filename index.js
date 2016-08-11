@@ -8,6 +8,7 @@ var Request = require("./request");
 var QueryCache = require("./cache");
 var Table = require('easy-table');
 var Promise = require("bluebird");
+var later = require('later');
 
 const replies = {
   thank: ["You're welcome.", "No problem.", "No trouble at all.", "My pleasure.", "Glad to help.", "Anytime.",
@@ -83,11 +84,11 @@ class LensSlackBot {
     this.queryCache = new QueryCache(this.client.getQuery.bind(this.client));
   }
 
-  getRequest(str) {
+  getRequest(str, title) {
     if (this.team_data.sql_shortcuts && this.team_data.sql_shortcuts[str]) {
-      return new Request(this.team_data.sql_shortcuts[str])
+      return new Request(this.team_data.sql_shortcuts[str], title)
     }
-    return new Request(str);
+    return new Request(str, title);
   }
 
   reply(message, heading, details, convo) {
@@ -161,15 +162,7 @@ class LensSlackBot {
             },
             {
               default: true,
-              callback: (response, convo) => {
-                try {
-                  parseRequestAndSend(response, convo);
-                } catch (e) {
-                  convo.say("Illegal Request: " + e);
-                  convo.repeat();
-                  convo.next();
-                }
-              }
+              callback: parseRequestAndSend
             }
           ]);
         }
@@ -244,7 +237,7 @@ class LensSlackBot {
               }
               table.newRow();
             });
-            this.reply(message, request.sql, table.toString(), convo);
+            this.reply(message, request.title, table.toString(), convo);
             markDetailsSent(convo, queries.length);
           }).catch((error)=> {
             console.log("error: " + error);
@@ -302,7 +295,22 @@ class LensSlackBot {
     const controller = Botkit.slackbot({debug: true, json_file_store: nconf.get("HOME") + '/lens-slack-bot-store'});
     const bot = controller.spawn({token: this.slackToken});
     const handlesRegex = "(((" + this.handleRegexString + ")\\s*,?\\s*)+)";
-    const collectionRegex = "(all\\s*)?(\\w+)\\squeries(.*?)";
+    const collectionRegex = "(all\\s*)?(\\w+)\\squeries(\\s*\\w+=[a-zA-Z0-9_/.-]+)*\\s*";
+    const get_trigger_function = (trigger_string, channel, response_title) => {
+      return ()=> {
+        if (this && this.bot && this.bot.identity && this.bot.identity.id) {
+          controller.trigger("ambient", [null, {
+            type: "message",
+            channel: channel,
+            user: this.bot.identity.id,
+            text: trigger_string,
+            team: this.bot.identity.team_id,
+            event: "direct_mention",
+            response_title: response_title
+          }]);
+        }
+      };
+    };
     bot.startRTM((error, bot, response) => {
       if (error) {
         console.error(error);
@@ -316,9 +324,25 @@ class LensSlackBot {
         }
         controller.storage.teams.get(team_id, (error, team_data) => {
           this.team_data = team_data || {};
-        })
+        });
+        controller.storage.channels.all((error, data)=> {
+          this.channels_data = data || {};
+          this.channels_data.forEach((channel_data)=> {
+            if (channel_data && channel_data.schedules) {
+              channel_data.schedules.forEach((schedule)=> {
+                later.setInterval(get_trigger_function(schedule.trigger, channel_data.id, schedule.name),
+                  schedule.schedule);
+              });
+            }
+          })
+        });
       });
       this.bot = bot;
+      this.bot.identifyBot((error, data)=> {
+        if (data) {
+          this.bot.identity = data;
+        }
+      })
     });
     controller.on('rtm_close', () => {
       this.client.invalidateSession(() => {
@@ -423,7 +447,8 @@ class LensSlackBot {
       parseCollection(message, message.match[1]).then((qs)=> {
         this.client.listQueries(qs, (queries)=> {
           queries = queries.map(query=>query.queryHandle.handleId);
-          this.respondWithDetails(message, queries, this.getRequest(message.text.replace(message.match[1], "?")), true);
+          this.respondWithDetails(message, queries,
+            this.getRequest(message.text.replace(message.match[1], "?"), message.response_title || message.text), true);
         });
       }).catch((error)=> {
         this.bot.reply(message, "Sorry couldn't parse your arguments: " + message.match[3] + ": "
@@ -445,13 +470,22 @@ class LensSlackBot {
         }
         this.team_data.sql_shortcuts[name] = sql;
         this.team_data.id = message.team;
-        controller.storage.teams.save(this.team_data, (err) => {
-          if (err) {
-            console.log("Error saving data");
-          } else {
-            callback();
-          }
+        controller.storage.teams.save(this.team_data, callback);
+      };
+      const saveSchedule = (convo, callback) => {
+        this.channels_data[message.channel] = this.channels_data[message.channel] || {};
+        this.channels_data[message.channel].schedules = this.channels_data[message.channel].schedules || [];
+        this.channels_data[message.channel].schedules.push({
+          schedule: convo.responses.sched,
+          trigger: convo.extractResponse("trigger"),
+          name: convo.extractResponse("name")
         });
+        this.channels_data[message.channel].id = message.channel;
+        controller.storage.channels.save(this.channels_data[message.channel], callback);
+        later.setInterval(
+          get_trigger_function(convo.extractResponse("trigger"), message.channel, convo.extractResponse("name")),
+          convo.responses.sched
+        );
       };
       const askSql = (response, convo) => {
         convo.ask("Tell me your sql", (response, convo) => {
@@ -464,18 +498,58 @@ class LensSlackBot {
         convo.ask("Tell me the shorthand name for the sql", (response, convo) => {
           let name = convo.extractResponse("name");
           let sql = convo.extractResponse("sql");
-          saveSql(name, sql, ()=> {
-            convo.say("Saved `" + sql + "` as `" + name + "`");
+          saveSql(name, sql, (error, data)=> {
+            if (error) {
+              convo.say("Unable to Save");
+            } else if (data) {
+              convo.say("Saved `" + sql + "` as `" + name + "`");
+            }
             convo.next();
           });
           convo.next();
         }, {key: 'name'});
+      };
+      const askScheduleName = (response, convo) => {
+        convo.ask("Tell me the shorthand name for the schedule.", (response, convo) => {
+          saveSchedule(convo, (error, data)=> {
+            if (error) {
+              convo.say("Unable to Save");
+            } else if (data) {
+              convo.say("Saved.");
+            }
+            convo.next();
+          });
+          convo.next();
+        }, {key: 'name'});
+      };
+      const askSchedule = (response, convo) => {
+        convo.ask("Tell me your schedule", (response, convo) => {
+          const sched = later.parse.text(response.text);
+          if (sched && sched.error != -1) {
+            askSchedule(response, convo);
+          } else {
+            convo.responses.sched = sched;
+            askTrigger(response, convo);
+          }
+          convo.next();
+        }, {key: 'schedule'});
+        convo.next();
+      };
+      const askTrigger = (response, convo) => {
+        convo.ask("Tell me the what you want to trigger at this schedule.", (response, convo) => {
+          askScheduleName(response, convo);
+          convo.next();
+        }, {key: 'trigger'});
       };
       this.bot.startConversation(message, (error, convo) => {
         convo.ask("What do you want me to learn?", [
           {
             pattern: "sql",
             callback: askSql
+          },
+          {
+            pattern: "schedule",
+            callback: askSchedule
           },
           {
             default: true,
