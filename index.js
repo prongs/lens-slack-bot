@@ -91,15 +91,16 @@ class LensSlackBot {
     return new Request(str, title);
   }
 
-  reply(message, heading, details, convo) {
+  reply(message, heading, details, convo, cb) {
     const reply = getMessage(heading, details);
     if (reply.length < 4000) {
       if (convo) {
         convo.say(reply);
         convo.next();
         this.updateLastActiveTime();
+        cb && cb(null, "Success");
       } else {
-        this.bot.reply(message, reply, this.updateLastActiveTime);
+        this.bot.reply(message, reply, cb);
       }
     } else {
       if (typeof(details) == "object") {
@@ -111,11 +112,9 @@ class LensSlackBot {
         title: heading,
         filename: heading,
         channels: message.channel
-      }, (error, json) => {
-        console.log(error);
-        console.log(json);
-      });
+      }, cb);
     }
+    this.updateLastActiveTime();
   }
 
   respondWithDetails(message, handles, request, stop) {
@@ -417,18 +416,12 @@ class LensSlackBot {
         parseCollection(message).then((qs)=> {
           this.client.listQueries(qs, (queries)=> {
             queries = queries.map(query=>query.queryHandle.handleId);
-            let reply = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
-            if (queries.length > 0) {
-              reply = reply + "\n```" + YAML.stringify(queries) + "```";
-            }
-            this.bot.reply(message, reply, () => {
+            let heading = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
+            let reply = heading;
+            this.reply(message, heading, queries.length > 0 ? YAML.stringify(queries) : null, null, ()=> {
               this.updateLastActiveTime();
-              let request;
               if (message.match[5]) {
-                request = this.getRequest(message.match[5]);
-              }
-              if (request) {
-                this.respondWithDetails(message, queries, request);
+                this.respondWithDetails(message, queries, this.getRequest(message.match[5]));
               }
             });
           });
