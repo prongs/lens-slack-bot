@@ -166,6 +166,9 @@ class LensSlackBot {
           ]);
         }
         convo.next();
+        if (end || stop) {
+          convo.stop();
+        }
       }
     };
     const sendAllQueryDetails = (convo) => {
@@ -294,7 +297,7 @@ class LensSlackBot {
     const controller = Botkit.slackbot({debug: true, json_file_store: nconf.get("HOME") + '/lens-slack-bot-store'});
     const bot = controller.spawn({token: this.slackToken});
     const handlesRegex = "(((" + this.handleRegexString + ")\\s*,?\\s*)+)";
-    const collectionRegex = "(all\\s*)?(\\w+)\\squeries(\\s*\\w+=[a-zA-Z0-9_/.-]+)*\\s*";
+    const collectionRegex = "(all\\s*)?(\\w+)\\squeries((\\s*\\w+=[a-zA-Z0-9_/.-]+)*)\\s*";
     const get_trigger_function = (trigger_string, channel, response_title) => {
       return ()=> {
         if (this && this.bot && this.bot.identity && this.bot.identity.id) {
