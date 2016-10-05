@@ -424,7 +424,7 @@ class LensSlackBot {
             this.reply(message, heading, queries.length > 0 ? YAML.stringify(queries) : null, null, ()=> {
               this.updateLastActiveTime();
               if (message.match[5]) {
-                this.respondWithDetails(message, queries, this.getRequest(message.match[5]));
+                this.respondWithDetails(message, queries, this.getRequest(message.match[6]));
               }
             });
           });
