@@ -166,9 +166,9 @@ class LensSlackBot {
           ]);
         }
         convo.next();
-        if (end || stop) {
-          convo.stop();
-        }
+        //if (end || stop) {
+        //  convo.stop();
+        //}
       }
     };
     const sendAllQueryDetails = (convo) => {
@@ -202,7 +202,7 @@ class LensSlackBot {
           }
           queries = queries.filter(query=>query);
           console.log(JSON.stringify(queries));
-          alasql.promise(request.sql, [queries.map((query) => {
+          let data = [queries.map((query) => {
             query = query.lensQuery;
             query.handle = query.queryHandle.handleId;
             if (query.queryConf && query.queryConf.properties) {
@@ -225,7 +225,8 @@ class LensSlackBot {
               query.queryConf = conf;
             }
             return query;
-          })]).then((result)=> {
+          })];
+          alasql.promise(request.sql, data).then((result)=> {
             let table = new Table();
             result.forEach((row)=> {
               for (let key in row) {
@@ -444,7 +445,7 @@ class LensSlackBot {
         this.client.listQueries(qs, (queries)=> {
           queries = queries.map(query=>query.queryHandle.handleId);
           this.respondWithDetails(message, queries,
-            this.getRequest(message.text.replace(message.match[1], "?"), message.response_title || message.text), true);
+            this.getRequest(message.text.replace(message.match[1].trim(), "?"), message.response_title || message.text), true);
         });
       }).catch((error)=> {
         this.bot.reply(message, "Sorry couldn't parse your arguments: " + message.match[3] + ": "
