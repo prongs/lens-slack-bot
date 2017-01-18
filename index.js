@@ -174,12 +174,12 @@ class LensSlackBot {
     const sendAllQueryDetails = (convo) => {
       this.bot.startTyping(message);
       const sendFromCacheOrAPI = () => {
-        this.queryCache.get(handles, (errors, queries)=> {
+        this.queryCache.get(handles, (errors, queries) => {
           if (errors && errors.length && errors.length == queries.length) {
             this.reply(message, "Few errors encountered while getting queries", JSON.stringify(errors), convo);
             markDetailsSent(convo, queries.length, true);
           } else {
-            queries.forEach((query)=> {
+            queries.forEach((query) => {
               if (query) {
                 sendQueryDetails(query.lensQuery, convo);
               } else {
@@ -196,18 +196,18 @@ class LensSlackBot {
       } else if (request.sql) {
         // Do analysis here
         console.log("sql: " + request.sql);
-        this.queryCache.get(handles, (errors, queries)=> {
+        this.queryCache.get(handles, (errors, queries) => {
           if (errors && errors.length) {
             this.reply(message, "Few errors encountered while getting queries", JSON.stringify(errors), convo);
           }
-          queries = queries.filter(query=>query);
+          queries = queries.filter(query => query);
           console.log(JSON.stringify(queries));
           let data = [queries.map((query) => {
             query = query.lensQuery;
             query.handle = query.queryHandle.handleId;
             if (query.queryConf && query.queryConf.properties) {
               let conf = {};
-              query.queryConf.properties.reduce((obj, x)=> {
+              query.queryConf.properties.reduce((obj, x) => {
                 if (x.key.indexOf("mapred") == 0 && x.key.indexOf("queue") > 0) {
                   query.queue = x.value;
                 }
@@ -226,9 +226,9 @@ class LensSlackBot {
             }
             return query;
           })];
-          alasql.promise(request.sql, data).then((result)=> {
+          alasql.promise(request.sql, data).then((result) => {
             let table = new Table();
-            result.forEach((row)=> {
+            result.forEach((row) => {
               for (let key in row) {
                 if (row.hasOwnProperty(key)) {
                   let value = row[key];
@@ -242,7 +242,7 @@ class LensSlackBot {
             });
             this.reply(message, request.title, table.toString(), convo);
             markDetailsSent(convo, queries.length);
-          }).catch((error)=> {
+          }).catch((error) => {
             console.log("error: " + error);
             this.reply(message, "Query Invalid: " + error);
             markDetailsSent(convo, queries.length);
@@ -300,7 +300,7 @@ class LensSlackBot {
     const handlesRegex = "(((" + this.handleRegexString + ")\\s*,?\\s*)+)";
     const collectionRegex = "(all\\s*)?(\\w+)\\squeries((\\s*\\w+=[a-zA-Z0-9_/.-]+)*)\\s*";
     const get_trigger_function = (trigger_string, channel, response_title) => {
-      return ()=> {
+      return () => {
         if (this && this.bot && this.bot.identity && this.bot.identity.id) {
           controller.trigger("ambient", [null, {
             type: "message",
@@ -320,7 +320,7 @@ class LensSlackBot {
         throw new Error("Couldn't connect to slack", error);
       }
       // read team data here, since team id is not available before starting RTM
-      bot.identifyTeam((error, team_id)=> {
+      bot.identifyTeam((error, team_id) => {
         if (error) {
           console.log("Error reading team data");
           process.exit(1);
@@ -328,11 +328,11 @@ class LensSlackBot {
         controller.storage.teams.get(team_id, (error, team_data) => {
           this.team_data = team_data || {};
         });
-        controller.storage.channels.all((error, data)=> {
+        controller.storage.channels.all((error, data) => {
           this.channels_data = data || {};
-          this.channels_data.forEach((channel_data)=> {
+          this.channels_data.forEach((channel_data) => {
             if (channel_data && channel_data.schedules) {
-              channel_data.schedules.forEach((schedule)=> {
+              channel_data.schedules.forEach((schedule) => {
                 later.setInterval(get_trigger_function(schedule.trigger, channel_data.id, schedule.name),
                   schedule.schedule);
               });
@@ -341,7 +341,7 @@ class LensSlackBot {
         });
       });
       this.bot = bot;
-      this.bot.identifyBot((error, data)=> {
+      this.bot.identifyBot((error, data) => {
         if (data) {
           this.bot.identity = data;
         }
@@ -374,7 +374,7 @@ class LensSlackBot {
     );
     const parseCollection = (message, collectionString) => {
       collectionString = collectionString || message.match[0];
-      return new Promise((resolve, reject)=> {
+      return new Promise((resolve, reject) => {
         const match = collectionString.match(collectionRegex);
         const qs = {};
         if (match[3]) {
@@ -401,7 +401,7 @@ class LensSlackBot {
           }
         }
         if (!('user' in qs)) {
-          return this.bot.api.users.info({user: message.user}, (error, json)=> {
+          return this.bot.api.users.info({user: message.user}, (error, json) => {
             if (json && json.user && json.user.name) {
               qs['user'] = json.user.name;
               resolve(qs);
@@ -417,19 +417,19 @@ class LensSlackBot {
     controller.hears(["^" + collectionRegex + "(:\\s*(.*?))?$"],
       ['direct_message', 'direct_mention', 'mention', 'ambient'], (bot, message) => {
         this.bot.startTyping(message);
-        parseCollection(message).then((qs)=> {
-          this.client.listQueries(qs, (queries)=> {
-            queries = queries.map(query=>query.queryHandle.handleId);
+        parseCollection(message).then((qs) => {
+          this.client.listQueries(qs, (queries) => {
+            queries = queries.map(query => query.queryHandle.handleId);
             let heading = "`" + JSON.stringify(qs) + "`(" + queries.length + " )";
             let reply = heading;
-            this.reply(message, heading, queries.length > 0 ? YAML.stringify(queries) : null, null, ()=> {
+            this.reply(message, heading, queries.length > 0 ? YAML.stringify(queries) : null, null, () => {
               this.updateLastActiveTime();
               if (message.match[5]) {
                 this.respondWithDetails(message, queries, this.getRequest(message.match[6]));
               }
             });
           });
-        }).catch((error)=> {
+        }).catch((error) => {
           this.bot.reply(message, "Sorry couldn't parse your arguments: " + message.match[3] + ": "
             + JSON.stringify(error), this.updateLastActiveTime);
         });
@@ -441,16 +441,26 @@ class LensSlackBot {
       "select .*? from (" + collectionRegex + ").*?"
     ], ['direct_message', 'direct_mention', 'mention', 'ambient'], (bot, message) => {
       this.bot.startTyping(message);
-      parseCollection(message, message.match[1]).then((qs)=> {
-        this.client.listQueries(qs, (queries)=> {
-          queries = queries.map(query=>query.queryHandle.handleId);
+      parseCollection(message, message.match[1]).then((qs) => {
+        this.client.listQueries(qs, (queries) => {
+          queries = queries.map(query => query.queryHandle.handleId);
           this.respondWithDetails(message, queries,
             this.getRequest(message.text.replace(message.match[1].trim(), "?"), message.response_title || message.text), true);
         });
-      }).catch((error)=> {
+      }).catch((error) => {
         this.bot.reply(message, "Sorry couldn't parse your arguments: " + message.match[3] + ": "
           + JSON.stringify(error), this.updateLastActiveTime);
       })
+    });
+
+    controller.hears([
+      "select .*? from (" + handlesRegex + ").*?",
+    ], ['direct_message', 'direct_mention', 'mention', 'ambient'], (bot, message) => {
+      console.log(message.match);
+      this.bot.startTyping(message);
+      this.respondWithDetails(message, message.match[1].match(this.handleRegex),
+        this.getRequest(message.text.replace(message.match[1].trim(), "?"), message.response_title || message.text), true);
+
     });
 
     controller.hears(["what do you know", "what have you learned"], ["direct_message", "direct_mention"], (bot, message) => {
@@ -495,7 +505,7 @@ class LensSlackBot {
         convo.ask("Tell me the shorthand name for the sql", (response, convo) => {
           let name = convo.extractResponse("name");
           let sql = convo.extractResponse("sql");
-          saveSql(name, sql, (error, data)=> {
+          saveSql(name, sql, (error, data) => {
             if (error) {
               convo.say("Unable to Save");
             } else if (data) {
@@ -508,7 +518,7 @@ class LensSlackBot {
       };
       const askScheduleName = (response, convo) => {
         convo.ask("Tell me the shorthand name for the schedule.", (response, convo) => {
-          saveSchedule(convo, (error, data)=> {
+          saveSchedule(convo, (error, data) => {
             if (error) {
               convo.say("Unable to Save");
             } else if (data) {
