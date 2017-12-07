@@ -30,11 +30,14 @@ class Request {
       this.sql = str.decodeHTML();
       this.title = title || this.sql;
     }
-    if (str.indexOf(":") > 0 ){
+    if (str.indexOf(":") > 0) {
       let context = str.split(":")[0].trim();
       if (context && context.toLowerCase().indexOf("queries")) {
         throw "You're trying to start new conversation.";
       }
+    }
+    if (str.match(/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/)) {
+      throw "You're trying to start new conversation.";
     }
     let fields = str.trim().split(/\s*,\s*/);
     for (let i = 0; i < fields.length; i++) {

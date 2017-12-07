@@ -95,7 +95,7 @@ class LensSlackBot {
     const reply = getMessage(heading, details);
     if (reply.length < 4000) {
       if (convo) {
-        convo.say(reply);
+        convo.addMessage(reply);
         convo.next();
         this.updateLastActiveTime();
         cb && cb(null, "Success");
@@ -125,7 +125,7 @@ class LensSlackBot {
       try {
         parsedRequest = this.getRequest(response.text);
       } catch (e) {
-        convo.say("Illegal request. Finish this conversation first. " + e);
+        convo.addMessage("Illegal request. Finish this conversation first. " + e);
         convo.repeat();
         convo.next();
       }
@@ -144,18 +144,18 @@ class LensSlackBot {
       detailsSent += amount;
       if (detailsSent == handles.length) {
         if ((!stop) && (!end)) {
-          convo.ask("Do you want to analyze more?", [
+          convo.addQuestion("Do you want to analyze more?", [
             {
               pattern: this.bot.utterances.no,
               callback: (response, convo) => {
-                convo.say(get_reply_to('exit'));
+                convo.addMessage(get_reply_to('exit'));
                 convo.next();
               }
             },
             {
               pattern: this.bot.utterances.yes,
               callback: (response, convo) => {
-                convo.ask("Tell me.", parseRequestAndSend);
+                convo.addQuestion("Tell me.", parseRequestAndSend);
                 convo.next();
               }
             },
@@ -495,21 +495,21 @@ class LensSlackBot {
         );
       };
       const askSql = (response, convo) => {
-        convo.ask("Tell me your sql", (response, convo) => {
+        convo.addQuestion("Tell me your sql", (response, convo) => {
           askName(response, convo);
           convo.next();
         }, {key: 'sql'});
         convo.next();
       };
       const askName = (response, convo) => {
-        convo.ask("Tell me the shorthand name for the sql", (response, convo) => {
+        convo.addQuestion("Tell me the shorthand name for the sql", (response, convo) => {
           let name = convo.extractResponse("name");
           let sql = convo.extractResponse("sql");
           saveSql(name, sql, (error, data) => {
             if (error) {
-              convo.say("Unable to Save");
+              convo.addMessage("Unable to Save");
             } else if (data) {
-              convo.say("Saved `" + sql + "` as `" + name + "`");
+              convo.addMessage("Saved `" + sql + "` as `" + name + "`");
             }
             convo.next();
           });
@@ -517,12 +517,12 @@ class LensSlackBot {
         }, {key: 'name'});
       };
       const askScheduleName = (response, convo) => {
-        convo.ask("Tell me the shorthand name for the schedule.", (response, convo) => {
+        convo.addQuestion("Tell me the shorthand name for the schedule.", (response, convo) => {
           saveSchedule(convo, (error, data) => {
             if (error) {
-              convo.say("Unable to Save");
+              convo.addMessage("Unable to Save");
             } else if (data) {
-              convo.say("Saved.");
+              convo.addMessage("Saved.");
             }
             convo.next();
           });
@@ -530,7 +530,7 @@ class LensSlackBot {
         }, {key: 'name'});
       };
       const askSchedule = (response, convo) => {
-        convo.ask("Tell me your schedule", (response, convo) => {
+        convo.addQuestion("Tell me your schedule", (response, convo) => {
           const sched = later.parse.text(response.text);
           if (sched && sched.error != -1) {
             askSchedule(response, convo);
@@ -543,13 +543,13 @@ class LensSlackBot {
         convo.next();
       };
       const askTrigger = (response, convo) => {
-        convo.ask("Tell me the what you want to trigger at this schedule.", (response, convo) => {
+        convo.addQuestion("Tell me the what you want to trigger at this schedule.", (response, convo) => {
           askScheduleName(response, convo);
           convo.next();
         }, {key: 'trigger'});
       };
       this.bot.startConversation(message, (error, convo) => {
-        convo.ask("What do you want me to learn?", [
+        convo.addQuestion("What do you want me to learn?", [
           {
             pattern: "sql",
             callback: askSql
@@ -571,12 +571,12 @@ class LensSlackBot {
     if (nconf.get("upgrade_secret")) {
       controller.hears(["^upgrade$"], ["direct_message", "direct_mention"], (bot, message) => {
         this.bot.startConversation(message, (error, convo) => {
-          convo.ask("Provide the upgrade secret.", [
+          convo.addQuestion("Provide the upgrade secret.", [
             {
               default: true,
               callback: (error, convo) => {
                 if (convo.extractResponse('secret') == nconf.get("upgrade_secret")) {
-                  convo.say("Going down for upgrade.");
+                  convo.addMessage("Going down for upgrade.");
                   convo.next();
                   process.exit();
                 }
